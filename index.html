@@ -629,17 +629,20 @@ Rules:
     btn.classList.add('loading'); btn.disabled = true;
 
     try {
-      // Upload image to Storage
+      // Upload image via server proxy (avoids browser CORS)
       const fileName = `${currentUser.id}/${Date.now()}.jpg`;
-      const blob = base64ToBlob(croppedBase64, 'image/jpeg');
-
-      const uploadResult = await Promise.race([
-        sb.storage.from('belege-images').upload(fileName, blob, { contentType: 'image/jpeg' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload-Timeout (30s)')), 30000))
-      ]);
-
-      if (uploadResult.error) throw new Error('Upload: ' + uploadResult.error.message);
-      const { data: { publicUrl } } = sb.storage.from('belege-images').getPublicUrl(fileName);
+      const { data: { session } } = await sb.auth.getSession();
+      const uploadRes = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ imageBase64: croppedBase64, fileName }),
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error('Upload: ' + (uploadData.error || uploadRes.status));
+      const publicUrl = uploadData.publicUrl;
 
       const { error } = await sb.from('belege').insert({
         user_id: currentUser.id,
