@@ -366,23 +366,36 @@
   let belege = [], detailBeleg = null;
 
   async function init() {
-    const cfg = await fetch('/api/config').then(r => r.json());
-    sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    try {
+      const cfg = await fetch('/api/config').then(r => r.json());
+      sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-    sb.auth.onAuthStateChange(async (event, session) => {
+      // Handle login/logout events after init
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN') {
+          currentUser = session.user;
+          await loadProfile();
+          showApp();
+          loadBelege();
+        } else if (event === 'SIGNED_OUT') {
+          currentUser = null; currentProfile = null;
+          showLogin();
+        }
+      });
+
+      // Check existing session on load
+      const { data: { session } } = await sb.auth.getSession();
       if (session) {
         currentUser = session.user;
         await loadProfile();
         showApp();
         loadBelege();
       } else {
-        currentUser = null; currentProfile = null;
         showLogin();
       }
-    });
-
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) showLogin();
+    } catch (err) {
+      document.body.innerHTML = `<div style="padding:40px;font-family:monospace;color:#c8440a">Init-Fehler: ${err.message}</div>`;
+    }
   }
 
   async function loadProfile() {
