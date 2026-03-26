@@ -631,7 +631,11 @@ Rules:
     try {
       // Upload image via server proxy (avoids browser CORS)
       const fileName = `${currentUser.id}/${Date.now()}.jpg`;
-      const { data: { session } } = await sb.auth.getSession();
+      const sessionResult = await sb.auth.getSession();
+      const session = sessionResult.data?.session;
+      if (!session) throw new Error('Keine Session – bitte neu einloggen.');
+      const b64Len = croppedBase64 ? croppedBase64.length : 0;
+      console.log('saveBeleg: fileName=', fileName, 'b64 length=', b64Len);
       const uploadRes = await fetch('/api/upload-image', {
         method: 'POST',
         headers: {
@@ -640,8 +644,9 @@ Rules:
         },
         body: JSON.stringify({ imageBase64: croppedBase64, fileName }),
       });
+      console.log('saveBeleg: upload status=', uploadRes.status);
       const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error('Upload: ' + (uploadData.error || uploadRes.status));
+      if (!uploadRes.ok) throw new Error('Upload ' + uploadRes.status + ': ' + (uploadData.error || JSON.stringify(uploadData)));
       const publicUrl = uploadData.publicUrl;
 
       const { error } = await sb.from('belege').insert({
