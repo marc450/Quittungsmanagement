@@ -640,31 +640,42 @@ Rules:
     const btn = document.getElementById('saveBelegBtn');
     btn.classList.add('loading'); btn.disabled = true;
 
-    // Upload image to Storage
-    const fileName = `${currentUser.id}/${Date.now()}.jpg`;
-    const blob = base64ToBlob(croppedBase64, 'image/jpeg');
-    const { error: uploadError } = await sb.storage.from('belege-images').upload(fileName, blob, { contentType: 'image/jpeg' });
-    if (uploadError) { showError('Bild-Upload fehlgeschlagen: ' + uploadError.message); btn.classList.remove('loading'); btn.disabled = false; return; }
-    const { data: { publicUrl } } = sb.storage.from('belege-images').getPublicUrl(fileName);
+    try {
+      // Upload image to Storage
+      const fileName = `${currentUser.id}/${Date.now()}.jpg`;
+      const blob = base64ToBlob(croppedBase64, 'image/jpeg');
 
-    const { error } = await sb.from('belege').insert({
-      user_id: currentUser.id,
-      merchant: currentResult.merchant || null,
-      date: currentResult.date || null,
-      amount: currentResult.total ?? null,
-      currency: currentResult.currency || null,
-      payment_method: document.getElementById('savePaymentMethod').value,
-      category: document.getElementById('saveCategory').value,
-      beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
-      image_url: publicUrl,
-    });
-    btn.classList.remove('loading'); btn.disabled = false;
-    if (error) { showError('Fehler beim Speichern: ' + error.message); return; }
-    document.getElementById('resultCard').classList.remove('visible');
-    document.getElementById('previewArea').classList.remove('visible');
-    document.getElementById('fileInput').value = '';
-    currentResult = null; croppedBase64 = null;
-    await loadBelege();
+      const uploadResult = await Promise.race([
+        sb.storage.from('belege-images').upload(fileName, blob, { contentType: 'image/jpeg' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload-Timeout (30s)')), 30000))
+      ]);
+
+      if (uploadResult.error) throw new Error('Upload: ' + uploadResult.error.message);
+      const { data: { publicUrl } } = sb.storage.from('belege-images').getPublicUrl(fileName);
+
+      const { error } = await sb.from('belege').insert({
+        user_id: currentUser.id,
+        merchant: currentResult.merchant || null,
+        date: currentResult.date || null,
+        amount: currentResult.total ?? null,
+        currency: currentResult.currency || null,
+        payment_method: document.getElementById('savePaymentMethod').value,
+        category: document.getElementById('saveCategory').value,
+        beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
+        image_url: publicUrl,
+      });
+      if (error) throw new Error('DB: ' + error.message);
+
+      document.getElementById('resultCard').classList.remove('visible');
+      document.getElementById('previewArea').classList.remove('visible');
+      document.getElementById('fileInput').value = '';
+      currentResult = null; croppedBase64 = null;
+      await loadBelege();
+    } catch (err) {
+      showError('Fehler: ' + err.message);
+    } finally {
+      btn.classList.remove('loading'); btn.disabled = false;
+    }
   }
 
   async function loadBelege() {
