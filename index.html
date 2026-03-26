@@ -226,6 +226,7 @@
       document.getElementById('cropDoneNote').style.display = 'none';
       document.getElementById('cropBtn').style.display = 'inline-flex';
       hideError();
+      openCropper();
     };
     reader.readAsDataURL(file);
   }
@@ -336,6 +337,7 @@
     document.getElementById('cropBtn').style.display='none';
     document.getElementById('analyzeBtn').style.display='inline-flex';
     document.getElementById('cropDoneNote').style.display='block';
+    analyzeReceipt();
   }
 
   async function analyzeReceipt() {
