@@ -177,7 +177,7 @@
 <body>
 
 <!-- Login -->
-<div id="loginScreen" style="display:none">
+<div id="loginScreen">
   <div class="login-screen">
     <div class="login-card">
       <div class="login-logo">Quit<span>tungen</span></div>
@@ -370,29 +370,17 @@
       const cfg = await fetch('/api/config').then(r => r.json());
       sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-      // Handle login/logout events after init
       sb.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN') {
+        if (session) {
           currentUser = session.user;
           await loadProfile();
           showApp();
           loadBelege();
-        } else if (event === 'SIGNED_OUT') {
+        } else {
           currentUser = null; currentProfile = null;
           showLogin();
         }
       });
-
-      // Check existing session on load
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
-        currentUser = session.user;
-        await loadProfile();
-        showApp();
-        loadBelege();
-      } else {
-        showLogin();
-      }
     } catch (err) {
       document.body.innerHTML = `<div style="padding:40px;font-family:monospace;color:#c8440a">Init-Fehler: ${err.message}</div>`;
     }
