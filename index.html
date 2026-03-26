@@ -606,6 +606,8 @@ Rules:
       document.getElementById('itemsSection').style.display = 'block';
       document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
     } else { document.getElementById('itemsSection').style.display = 'none'; }
+    document.getElementById('analyzeBtn').style.display = 'none';
+    document.getElementById('cropDoneNote').style.display = 'none';
     document.getElementById('resultCard').classList.add('visible');
     document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'nearest'});
     document.getElementById('savePaymentMethod').value = 'Bar';
