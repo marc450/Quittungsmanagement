@@ -613,10 +613,25 @@ Rules:
     document.getElementById('saveBeschreibung').value = '';
   }
 
+  function base64ToBlob(b64, mime) {
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
   async function saveBeleg() {
     if (!currentResult || !currentUser) return;
     const btn = document.getElementById('saveBelegBtn');
     btn.classList.add('loading'); btn.disabled = true;
+
+    // Upload image to Storage
+    const fileName = `${currentUser.id}/${Date.now()}.jpg`;
+    const blob = base64ToBlob(croppedBase64, 'image/jpeg');
+    const { error: uploadError } = await sb.storage.from('belege-images').upload(fileName, blob, { contentType: 'image/jpeg' });
+    if (uploadError) { showError('Bild-Upload fehlgeschlagen: ' + uploadError.message); btn.classList.remove('loading'); btn.disabled = false; return; }
+    const { data: { publicUrl } } = sb.storage.from('belege-images').getPublicUrl(fileName);
+
     const { error } = await sb.from('belege').insert({
       user_id: currentUser.id,
       merchant: currentResult.merchant || null,
@@ -626,7 +641,7 @@ Rules:
       payment_method: document.getElementById('savePaymentMethod').value,
       category: document.getElementById('saveCategory').value,
       beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
-      image_base64: croppedBase64,
+      image_url: publicUrl,
     });
     btn.classList.remove('loading'); btn.disabled = false;
     if (error) { showError('Fehler beim Speichern: ' + error.message); return; }
@@ -639,7 +654,7 @@ Rules:
 
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
-      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_base64,abrechnung_id,created_at')
+      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,abrechnung_id,created_at')
       .order('created_at', { ascending: false });
     if (!error) { belege = data || []; renderBelegeList(); }
   }
@@ -654,7 +669,7 @@ Rules:
     }
     el.innerHTML = belege.map(b => `
       <div class="receipt-row">
-        <img class="receipt-thumb" src="data:image/jpeg;base64,${b.image_base64||''}"
+        <img class="receipt-thumb" src="${esc(b.image_url||'')}"
              onclick="openDetail('${b.id}')" onerror="this.style.opacity='0.15'" />
         <div class="receipt-info">
           <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
@@ -687,7 +702,7 @@ Rules:
     document.getElementById('detailMerchant').textContent = detailBeleg.merchant || 'Unbekannt';
     document.getElementById('detailDate').textContent = detailBeleg.date || '—';
     document.getElementById('detailAmount').textContent = (detailBeleg.amount != null ? Number(detailBeleg.amount).toFixed(2) : '—') + ' ' + (detailBeleg.currency || '');
-    document.getElementById('detailImage').src = `data:image/jpeg;base64,${detailBeleg.image_base64||''}`;
+    document.getElementById('detailImage').src = detailBeleg.image_url || '';
     document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
     document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
