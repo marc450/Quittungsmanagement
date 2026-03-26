@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quittungen · Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1a1a; --paper: #f5f0e8; --cream: #ede8dc; --accent: #c8440a;
+    --accent-light: #f2ece3; --muted: #8a8070; --border: #d4ccbc;
+    --success: #2d7d46; --mono: 'DM Mono', monospace; --serif: 'DM Serif Display', serif;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: var(--mono); font-weight: 300; min-height: 100vh; font-size: 13px; line-height: 1.6; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1.5px solid var(--border); }
+  .logo { font-family: var(--serif); font-size: 28px; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); font-style: italic; }
+  .header-meta { text-align: right; color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 12px; }
+  .drop-zone { border: 1.5px dashed var(--border); border-radius: 4px; padding: 48px 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--cream); position: relative; overflow: hidden; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5; }
+  .drop-text { font-size: 13px; color: var(--muted); }
+  .drop-text strong { color: var(--accent); font-weight: 500; }
+  .drop-hint { font-size: 11px; color: var(--muted); margin-top: 6px; opacity: 0.7; }
+  .preview-area { display: none; margin-top: 20px; gap: 20px; align-items: flex-start; }
+  .preview-area.visible { display: flex; }
+  .preview-img { width: 140px; min-width: 140px; border-radius: 3px; border: 1.5px solid var(--border); object-fit: cover; max-height: 200px; }
+  .preview-meta { flex: 1; }
+  .preview-filename { font-weight: 500; margin-bottom: 4px; }
+  .preview-size { color: var(--muted); font-size: 11px; }
+  .btn-analyze { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 10px 20px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .btn-analyze:hover { background: var(--accent); }
+  .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-analyze .spinner { width: 12px; height: 12px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  .btn-analyze.loading .spinner { display: block; }
+  .btn-analyze.loading .btn-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-card { display: none; background: white; border: 1.5px solid var(--border); border-radius: 4px; overflow: hidden; margin-top: 32px; animation: slideIn 0.3s ease; }
+  .result-card.visible { display: block; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .result-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--cream); border-bottom: 1.5px solid var(--border); }
+  .result-title { font-family: var(--serif); font-size: 16px; }
+  .badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 2px; font-weight: 500; }
+  .badge-ch { background: #fff3e0; color: #b85c00; border: 1px solid #f0c080; }
+  .badge-eu { background: #e8f0fe; color: #1a56db; border: 1px solid #c0d0f0; }
+  .badge-other { background: var(--cream); color: var(--muted); border: 1px solid var(--border); }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .result-cell { padding: 16px 20px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .result-cell:nth-child(even) { border-right: none; }
+  .result-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .cell-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 4px; }
+  .cell-value { font-size: 15px; font-weight: 500; }
+  .cell-value.total { font-family: var(--serif); font-size: 22px; color: var(--accent); }
+  .cell-value.vat { color: var(--success); }
+  .cell-value.muted { color: var(--muted); font-size: 12px; font-style: italic; }
+  .result-address { padding: 16px 20px; border-top: 1.5px solid var(--border); background: var(--cream); }
+  .address-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; }
+  .items-section { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .items-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 10px; }
+  .item-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted var(--border); font-size: 12px; }
+  .item-row:last-child { border-bottom: none; }
+  .item-price { color: var(--muted); font-weight: 500; }
+  .error-msg { display: none; padding: 12px 16px; background: #fff0ee; border: 1px solid #f0c0b8; border-radius: 3px; color: var(--accent); font-size: 12px; margin-top: 16px; word-break: break-all; }
+  .error-msg.visible { display: block; }
+  .receipts-section { margin-top: 48px; padding-top: 32px; border-top: 1.5px solid var(--border); }
+  .receipts-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+  .receipts-title { font-family: var(--serif); font-size: 20px; }
+  .receipts-count { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .receipts-empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 4px; background: var(--cream); }
+  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; }
+  .receipt-row:hover { border-color: var(--accent); }
+  .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); }
+  .receipt-info .merchant { font-weight: 500; font-size: 13px; }
+  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .receipt-total { font-family: var(--serif); font-size: 18px; }
+  .receipt-vat { font-size: 11px; color: var(--success); }
+  .btn-remove { background: none; border: none; cursor: pointer; color: var(--border); font-size: 16px; transition: color 0.15s; padding: 4px; }
+  .btn-remove:hover { color: var(--accent); }
+  .summary-bar { display: flex; margin-top: 20px; padding: 16px 20px; background: var(--ink); color: var(--paper); border-radius: 3px; justify-content: space-between; align-items: center; }
+  .summary-bar.hidden { display: none; }
+  .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
+  .summary-value { font-family: var(--serif); font-size: 24px; }
+  .summary-vat { font-size: 12px; opacity: 0.7; }
+  .btn-export { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: transparent; color: var(--paper); border: 1px solid rgba(255,255,255,0.3); border-radius: 3px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+  .btn-export:hover { background: rgba(255,255,255,0.1); }
+  /* Cropper */
+  .cropper-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: #111; flex-direction: column; }
+  .cropper-overlay.active { display: flex; }
+  .cropper-topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #1a1a1a; flex-shrink: 0; }
+  .cropper-title { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.6); }
+  .cropper-hint { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.35); text-align: center; padding: 6px 18px; flex-shrink: 0; }
+  .cropper-stage { flex: 1; position: relative; overflow: hidden; touch-action: none; cursor: crosshair; }
+  .cropper-stage canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55); box-sizing: border-box; pointer-events: none; }
+  .crop-handle { position: absolute; width: 22px; height: 22px; pointer-events: none; }
+  .crop-handle::before, .crop-handle::after { content: ''; position: absolute; background: #fff; }
+  .crop-handle.tl { top: -2px; left: -2px; } .crop-handle.tl::before { width: 3px; height: 18px; top: 0; left: 0; } .crop-handle.tl::after { width: 18px; height: 3px; top: 0; left: 0; }
+  .crop-handle.tr { top: -2px; right: -2px; } .crop-handle.tr::before { width: 3px; height: 18px; top: 0; right: 0; } .crop-handle.tr::after { width: 18px; height: 3px; top: 0; right: 0; }
+  .crop-handle.bl { bottom: -2px; left: -2px; } .crop-handle.bl::before { width: 3px; height: 18px; bottom: 0; left: 0; } .crop-handle.bl::after { width: 18px; height: 3px; bottom: 0; left: 0; }
+  .crop-handle.br { bottom: -2px; right: -2px; } .crop-handle.br::before { width: 3px; height: 18px; bottom: 0; right: 0; } .crop-handle.br::after { width: 18px; height: 3px; bottom: 0; right: 0; }
+  .cropper-bottombar { display: flex; gap: 10px; padding: 14px 18px; background: #1a1a1a; flex-shrink: 0; }
+  .btn-crop-cancel { flex: 1; padding: 13px; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); border-radius: 3px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+  .btn-crop-confirm { flex: 2; padding: 13px; background: var(--accent); border: none; color: #fff; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+  @media (max-width: 600px) {
+    .result-grid { grid-template-columns: 1fr; } .result-cell { border-right: none; }
+    .receipt-row { grid-template-columns: 40px 1fr auto; } .receipt-vat, .btn-remove { display: none; }
+    header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="cropper-overlay" id="cropperOverlay">
+  <div class="cropper-topbar"><div class="cropper-title">Quittung zuschneiden</div></div>
+  <div class="cropper-hint">Rahmen verschieben &amp; Ecken ziehen · nur Quittung einschließen</div>
+  <div class="cropper-stage" id="cropStage">
+    <canvas id="cropCanvas"></canvas>
+    <div class="crop-box" id="cropBox">
+      <div class="crop-handle tl"></div><div class="crop-handle tr"></div>
+      <div class="crop-handle bl"></div><div class="crop-handle br"></div>
+    </div>
+  </div>
+  <div class="cropper-bottombar">
+    <button class="btn-crop-cancel" onclick="closeCropper()">Abbrechen</button>
+    <button class="btn-crop-confirm" onclick="confirmCrop()">✓ Zuschneiden &amp; Analysieren</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="logo">Quit<span>tungen</span></div>
+    <div class="header-meta">Expense Scanner<br>Monatliche Abrechnung</div>
+  </header>
+
+  <div class="upload-section" style="margin-bottom:32px">
+    <div class="section-label">Quittung hochladen</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*,.pdf" />
+      <span class="drop-icon">🧾</span>
+      <div class="drop-text">Datei hierher ziehen oder <strong>auswählen</strong></div>
+      <div class="drop-hint">JPG, PNG, HEIC — max. 10 MB</div>
+    </div>
+    <div class="preview-area" id="previewArea">
+      <img class="preview-img" id="previewImg" src="" alt="Vorschau" />
+      <div class="preview-meta">
+        <div class="preview-filename" id="previewName">—</div>
+        <div class="preview-size" id="previewSize">—</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+          <button class="btn-analyze" id="cropBtn" onclick="openCropper()">✂ Zuschneiden</button>
+          <button class="btn-analyze" id="analyzeBtn" onclick="analyzeReceipt()" style="display:none">
+            <span class="spinner"></span><span class="btn-label">Analysieren</span>
+          </button>
+        </div>
+        <div id="cropDoneNote" style="display:none;margin-top:8px;font-size:11px;color:var(--success)">✓ Zugeschnitten</div>
+      </div>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <div class="result-title" id="resultMerchant">—</div>
+      <div class="badge" id="countryBadge">—</div>
+    </div>
+    <div class="result-grid">
+      <div class="result-cell"><div class="cell-label">Gesamtbetrag</div><div class="cell-value total" id="resultTotal">—</div></div>
+      <div class="result-cell"><div class="cell-label">Währung</div><div class="cell-value" id="resultCurrency">—</div></div>
+      <div class="result-cell"><div class="cell-label">Datum</div><div class="cell-value" id="resultDate">—</div></div>
+      <div class="result-cell"><div class="cell-label">MwSt (Schweiz)</div><div class="cell-value vat" id="resultVAT">—</div></div>
+    </div>
+    <div id="itemsSection" class="items-section" style="display:none">
+      <div class="items-label">Positionen</div>
+      <div id="itemsList"></div>
+    </div>
+    <div class="result-address">
+      <div class="address-label">Adresse / Ort</div>
+      <div class="address-text" id="resultAddress">—</div>
+    </div>
+    <div style="padding:16px 20px;border-top:1px solid var(--border)">
+      <button class="btn-analyze" onclick="saveReceipt()" style="background:var(--success)">✓ Zur Liste hinzufügen</button>
+    </div>
+  </div>
+
+  <div class="receipts-section">
+    <div class="receipts-header">
+      <div class="receipts-title">Monatliche Übersicht</div>
+      <div class="receipts-count" id="receiptsCount">0 Belege</div>
+    </div>
+    <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
+    <div class="summary-bar hidden" id="summaryBar">
+      <div>
+        <div class="summary-label">Gesamtsumme</div>
+        <div class="summary-value" id="summaryTotal">—</div>
+        <div class="summary-vat" id="summaryVAT"></div>
+      </div>
+      <button class="btn-export" onclick="exportCSV()">⬇ CSV Export</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentFile = null, currentResult = null, croppedBase64 = null;
+  let receipts = [];
+  try { receipts = JSON.parse(localStorage.getItem('receipts') || '[]'); } catch(e) {}
+
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+  document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+  function handleFile(file) {
+    currentFile = file; croppedBase64 = null;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('previewImg').src = e.target.result;
+      document.getElementById('previewName').textContent = file.name;
+      document.getElementById('previewSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+      document.getElementById('previewArea').classList.add('visible');
+      document.getElementById('resultCard').classList.remove('visible');
+      document.getElementById('analyzeBtn').style.display = 'none';
+      document.getElementById('cropDoneNote').style.display = 'none';
+      document.getElementById('cropBtn').style.display = 'inline-flex';
+      hideError();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Cropper
+  let cropImg, cropImgW, cropImgH, stageW, stageH, imgOffX, imgOffY, imgRenderW, imgRenderH;
+  let crop = {x:0,y:0,w:0,h:0}, drag = null;
+  const MIN_CROP = 40, HANDLE_HIT = 28;
+
+  function openCropper() {
+    const overlay = document.getElementById('cropperOverlay');
+    overlay.classList.add('active');
+    const stage = document.getElementById('cropStage');
+    const canvas = document.getElementById('cropCanvas');
+    cropImg = new Image();
+    cropImg.onload = () => {
+      cropImgW = cropImg.naturalWidth; cropImgH = cropImg.naturalHeight;
+      stageW = stage.offsetWidth; stageH = stage.offsetHeight;
+      canvas.width = stageW; canvas.height = stageH;
+      const scale = Math.min(stageW / cropImgW, stageH / cropImgH);
+      imgRenderW = cropImgW * scale; imgRenderH = cropImgH * scale;
+      imgOffX = (stageW - imgRenderW) / 2; imgOffY = (stageH - imgRenderH) / 2;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, stageW, stageH);
+      ctx.drawImage(cropImg, imgOffX, imgOffY, imgRenderW, imgRenderH);
+      const pad = Math.min(imgRenderW, imgRenderH) * 0.05;
+      crop = {x: imgOffX+pad, y: imgOffY+pad, w: imgRenderW-pad*2, h: imgRenderH-pad*2};
+      updateCropBox();
+    };
+    cropImg.src = document.getElementById('previewImg').src;
+    stage.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }
+
+  function closeCropper() {
+    document.getElementById('cropperOverlay').classList.remove('active');
+    const stage = document.getElementById('cropStage');
+    stage.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+  }
+
+  function updateCropBox() {
+    const box = document.getElementById('cropBox');
+    box.style.left = crop.x+'px'; box.style.top = crop.y+'px';
+    box.style.width = crop.w+'px'; box.style.height = crop.h+'px';
+  }
+
+  function getStagePos(e) {
+    const r = document.getElementById('cropStage').getBoundingClientRect();
+    return {x: e.clientX - r.left, y: e.clientY - r.top};
+  }
+
+  function hitTest(px, py) {
+    const {x,y,w,h} = crop;
+    const corners = {tl:{cx:x,cy:y},tr:{cx:x+w,cy:y},bl:{cx:x,cy:y+h},br:{cx:x+w,cy:y+h}};
+    for (const [k,c] of Object.entries(corners)) {
+      if (Math.abs(px-c.cx)<HANDLE_HIT && Math.abs(py-c.cy)<HANDLE_HIT) return k;
+    }
+    if (px>x && px<x+w && py>y && py<y+h) return 'move';
+    return null;
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    const {x,y} = getStagePos(e);
+    const mode = hitTest(x,y);
+    if (!mode) return;
+    drag = {mode, startX:x, startY:y, origCrop:{...crop}};
+    document.getElementById('cropStage').setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (!drag) return; e.preventDefault();
+    const {x,y} = getStagePos(e);
+    const dx = x-drag.startX, dy = y-drag.startY, o = drag.origCrop;
+    const minX=imgOffX, maxX=imgOffX+imgRenderW, minY=imgOffY, maxY=imgOffY+imgRenderH;
+    let nx=o.x, ny=o.y, nw=o.w, nh=o.h;
+    if (drag.mode==='move') {
+      nx=Math.max(minX,Math.min(maxX-nw,o.x+dx)); ny=Math.max(minY,Math.min(maxY-nh,o.y+dy));
+    } else if (drag.mode==='tl') {
+      nx=Math.max(minX,Math.min(o.x+o.w-MIN_CROP,o.x+dx)); ny=Math.max(minY,Math.min(o.y+o.h-MIN_CROP,o.y+dy)); nw=o.x+o.w-nx; nh=o.y+o.h-ny;
+    } else if (drag.mode==='tr') {
+      ny=Math.max(minY,Math.min(o.y+o.h-MIN_CROP,o.y+dy)); nw=Math.max(MIN_CROP,Math.min(maxX-nx,o.w+dx)); nh=o.y+o.h-ny;
+    } else if (drag.mode==='bl') {
+      nx=Math.max(minX,Math.min(o.x+o.w-MIN_CROP,o.x+dx)); nw=o.x+o.w-nx; nh=Math.max(MIN_CROP,Math.min(maxY-ny,o.h+dy));
+    } else if (drag.mode==='br') {
+      nw=Math.max(MIN_CROP,Math.min(maxX-nx,o.w+dx)); nh=Math.max(MIN_CROP,Math.min(maxY-ny,o.h+dy));
+    }
+    crop={x:nx,y:ny,w:nw,h:nh}; updateCropBox();
+  }
+
+  function onPointerUp() { drag = null; }
+
+  function confirmCrop() {
+    const scaleX=cropImgW/imgRenderW, scaleY=cropImgH/imgRenderH;
+    const srcX=Math.round((crop.x-imgOffX)*scaleX), srcY=Math.round((crop.y-imgOffY)*scaleY);
+    const srcW=Math.round(crop.w*scaleX), srcH=Math.round(crop.h*scaleY);
+    const MAX=1200; let outW=srcW, outH=srcH;
+    if (outW>MAX||outH>MAX) { const s=Math.min(MAX/outW,MAX/outH); outW=Math.round(outW*s); outH=Math.round(outH*s); }
+    const out=document.createElement('canvas'); out.width=outW; out.height=outH;
+    out.getContext('2d').drawImage(cropImg,srcX,srcY,srcW,srcH,0,0,outW,outH);
+    const dataUrl=out.toDataURL('image/jpeg',0.92);
+    croppedBase64=dataUrl.split(',')[1];
+    document.getElementById('previewImg').src=dataUrl;
+    closeCropper();
+    document.getElementById('cropBtn').style.display='none';
+    document.getElementById('analyzeBtn').style.display='inline-flex';
+    document.getElementById('cropDoneNote').style.display='block';
+  }
+
+  async function analyzeReceipt() {
+    if (!croppedBase64) { showError('Kein Bild zugeschnitten.'); return; }
+    const btn = document.getElementById('analyzeBtn');
+    btn.classList.add('loading'); btn.disabled = true; hideError();
+
+    try {
+      const payload = {
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: croppedBase64 } },
+            { type: "text", text: `You are a receipt parser. Extract data from this receipt image and respond with ONLY a raw JSON object — no markdown, no explanation, no code fences. Start with { and end with }.
+
+Use exactly this structure:
+{"merchant":"string","date":"string","total":number_or_null,"currency":"string","address":"string","city":"string","country":"string","country_code":"2-letter ISO","is_switzerland":true_or_false,"vat_rate":number_or_null,"vat_amount":number_or_null,"net_amount":number_or_null,"items":[{"name":"string","price":number}],"notes":"string"}
+
+Rules:
+- total: number only e.g. 12.50, null if unreadable
+- For Swiss receipts: vat_rate=8.1, vat_amount=total/1.081*0.081, net_amount=total/1.081
+- items: line items if visible, empty array if not
+- null for any unreadable field` }
+          ]
+        }]
+      };
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let data;
+      try { data = await response.json(); } catch(e) { throw new Error('HTTP ' + response.status + ': Response war kein JSON'); }
+
+      if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (data?.error?.message || JSON.stringify(data)));
+      if (!data.content || !data.content.length) throw new Error('Leere API-Antwort: ' + JSON.stringify(data));
+
+      const text = data.content.map(b => b.text || '').join('').trim();
+      let result = null;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) { try { result = JSON.parse(jsonMatch[0]); } catch(e) { throw new Error('JSON parse: ' + e.message + ' in: ' + jsonMatch[0].slice(0,100)); } }
+      if (!result) throw new Error('Kein JSON in: ' + text.slice(0, 200));
+
+      currentResult = result;
+      renderResult(result);
+
+    } catch (err) {
+      showError('Fehler: ' + (err.message || String(err)));
+    }
+
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+
+  function renderResult(r) {
+    document.getElementById('resultMerchant').textContent = r.merchant || 'Unbekannt';
+    document.getElementById('resultTotal').textContent = (r.total != null ? r.total.toFixed(2) : '—') + (r.currency ? ' ' + r.currency : '');
+    document.getElementById('resultCurrency').textContent = r.currency || '—';
+    document.getElementById('resultDate').textContent = r.date || '—';
+    document.getElementById('resultAddress').textContent = r.address || r.city || '—';
+    const badge = document.getElementById('countryBadge');
+    if (r.country_code === 'CH' || r.is_switzerland) { badge.textContent = '🇨🇭 Schweiz'; badge.className = 'badge badge-ch'; }
+    else if (['DE','AT','FR','IT','ES','NL','BE'].includes(r.country_code)) { badge.textContent = '🇪🇺 ' + (r.country || r.country_code); badge.className = 'badge badge-eu'; }
+    else { badge.textContent = r.country || r.country_code || 'Unbekannt'; badge.className = 'badge badge-other'; }
+    const vatEl = document.getElementById('resultVAT');
+    if (r.is_switzerland && r.vat_amount != null) { vatEl.textContent = r.vat_amount.toFixed(2) + ' ' + r.currency + ' (' + r.vat_rate + '%)'; vatEl.className = 'cell-value vat'; }
+    else { vatEl.textContent = r.is_switzerland ? 'Nicht berechenbar' : 'Nicht Schweiz'; vatEl.className = 'cell-value muted'; }
+    const itemsSection = document.getElementById('itemsSection');
+    if (r.items && r.items.length > 0) {
+      itemsSection.style.display = 'block';
+      document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${i.name||'—'}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
+    } else { itemsSection.style.display = 'none'; }
+    document.getElementById('resultCard').classList.add('visible');
+    document.getElementById('resultCard').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  function saveReceipt() {
+    if (!currentResult) return;
+    receipts.unshift({...currentResult, id: Date.now(), image: document.getElementById('previewImg').src, savedAt: new Date().toLocaleDateString('de-DE')});
+    try { localStorage.setItem('receipts', JSON.stringify(receipts)); } catch(e) {}
+    renderReceiptsList();
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('previewArea').classList.remove('visible');
+    document.getElementById('fileInput').value = '';
+    currentFile = null; currentResult = null; croppedBase64 = null;
+  }
+
+  function removeReceipt(id) {
+    receipts = receipts.filter(r => r.id !== id);
+    try { localStorage.setItem('receipts', JSON.stringify(receipts)); } catch(e) {}
+    renderReceiptsList();
+  }
+
+  function renderReceiptsList() {
+    const el = document.getElementById('receiptsList');
+    const bar = document.getElementById('summaryBar');
+    document.getElementById('receiptsCount').textContent = receipts.length + ' Beleg' + (receipts.length !== 1 ? 'e' : '');
+    if (receipts.length === 0) { el.innerHTML = '<div class="receipts-empty">Noch keine Belege erfasst</div>'; bar.classList.add('hidden'); return; }
+    el.innerHTML = receipts.map(r => `<div class="receipt-row">
+      <img class="receipt-thumb" src="${r.image||''}" onerror="this.style.display='none'" />
+      <div class="receipt-info"><div class="merchant">${r.merchant||'Unbekannt'}</div><div class="date-loc">${r.date||'—'} · ${r.city||r.country||'—'}</div></div>
+      <div class="receipt-total">${r.total!=null?r.total.toFixed(2):'—'} ${r.currency||''}</div>
+      <div class="receipt-vat">${r.is_switzerland&&r.vat_amount?'MwSt '+r.vat_amount.toFixed(2):''}</div>
+      <button class="btn-remove" onclick="removeReceipt(${r.id})">✕</button>
+    </div>`).join('');
+    bar.classList.remove('hidden');
+    const total = receipts.reduce((s,r) => s+(r.total||0), 0);
+    const totalVAT = receipts.filter(r=>r.is_switzerland).reduce((s,r) => s+(r.vat_amount||0), 0);
+    document.getElementById('summaryTotal').textContent = (receipts[0]?.currency||'') + ' ' + total.toFixed(2);
+    document.getElementById('summaryVAT').textContent = totalVAT > 0 ? 'davon CH-MwSt: CHF ' + totalVAT.toFixed(2) : '';
+  }
+
+  function exportCSV() {
+    const rows = [['Händler','Datum','Betrag','Währung','Land','Adresse','MwSt','Nettobetrag']];
+    receipts.forEach(r => rows.push([r.merchant||'',r.date||'',r.total!=null?r.total.toFixed(2):'',r.currency||'',r.country||'',(r.address||'').replace(/,/g,' '),r.vat_amount!=null?r.vat_amount.toFixed(2):'',r.net_amount!=null?r.net_amount.toFixed(2):'']));
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+    a.download = 'quittungen_'+new Date().toISOString().slice(0,7)+'.csv';
+    a.click();
+  }
+
+  function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
+  function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
+
+  renderReceiptsList();
+</script>
+</body>
+</html>
