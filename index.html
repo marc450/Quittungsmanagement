@@ -344,6 +344,17 @@
         </select>
       </div>
       <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">Adresse</div>
+        <input type="text" id="detailAddress" class="field-input" placeholder="Geschäftsadresse" />
+      </div>
+      <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">MwSt</div>
+        <div style="display:flex;gap:6px">
+          <input type="number" step="0.01" id="detailVatAmount" class="field-input" placeholder="Betrag" style="flex:1" />
+          <input type="number" step="0.1" id="detailVatRate" class="field-input" placeholder="%" style="width:70px" />
+        </div>
+      </div>
+      <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Mappe</div>
         <select id="detailFolder" class="field-select">
           <option value="">— Keine Mappe —</option>
@@ -819,6 +830,9 @@ Rules:
         date: currentResult.date || null,
         amount: currentResult.total ?? null,
         currency: currentResult.currency || null,
+        vat_amount: currentResult.vat_amount ?? null,
+        vat_rate: currentResult.vat_rate ?? null,
+        address: currentResult.address || currentResult.city || null,
         payment_method: document.getElementById('savePaymentMethod').value,
         category: document.getElementById('saveCategory').value,
         beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
@@ -840,7 +854,7 @@ Rules:
 
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
-      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
+      .select('id,merchant,date,amount,currency,vat_amount,vat_rate,address,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
       .order('created_at', { ascending: false });
     if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
   }
@@ -968,6 +982,9 @@ Rules:
     document.getElementById('detailAmount').value = detailBeleg.amount != null ? Number(detailBeleg.amount).toFixed(2) : '';
     document.getElementById('detailCurrency').value = detailBeleg.currency || 'CHF';
     document.getElementById('detailImage').src = detailBeleg.image_url || '';
+    document.getElementById('detailAddress').value = detailBeleg.address || '';
+    document.getElementById('detailVatAmount').value = detailBeleg.vat_amount != null ? Number(detailBeleg.vat_amount).toFixed(2) : '';
+    document.getElementById('detailVatRate').value = detailBeleg.vat_rate != null ? detailBeleg.vat_rate : '';
     const folderSel = document.getElementById('detailFolder');
     folderSel.innerHTML = '<option value="">— Keine Mappe —</option>' +
       folders.map(f => `<option value="${f.id}" ${detailBeleg.folder_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
@@ -996,6 +1013,9 @@ Rules:
       currency: document.getElementById('detailCurrency').value.trim() || null,
       payment_method: document.getElementById('detailPaymentMethod').value,
       category: document.getElementById('detailCategory').value,
+      address: document.getElementById('detailAddress').value.trim() || null,
+      vat_amount: document.getElementById('detailVatAmount').value !== '' ? parseFloat(document.getElementById('detailVatAmount').value) : null,
+      vat_rate: document.getElementById('detailVatRate').value !== '' ? parseFloat(document.getElementById('detailVatRate').value) : null,
       beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
       folder_id: document.getElementById('detailFolder').value || null,
     }).eq('id', detailBeleg.id);
