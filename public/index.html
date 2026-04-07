@@ -343,6 +343,10 @@
           <option value="Essen Firma">Essen Firma</option>
         </select>
       </div>
+      <div class="modal-field" id="detailItemsSection" style="display:none">
+        <div class="cell-label" style="margin-bottom:8px">Positionen</div>
+        <div id="detailItemsList" style="border:1px solid var(--border);border-radius:3px;overflow:hidden"></div>
+      </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Adresse</div>
         <input type="text" id="detailAddress" class="field-input" placeholder="Geschäftsadresse" />
@@ -839,6 +843,8 @@ Rules:
         vat_amount: currentResult.vat_amount ?? null,
         vat_rate: currentResult.vat_rate ?? null,
         address: currentResult.address || currentResult.city || null,
+        items: currentResult.items?.length ? currentResult.items : null,
+        country_code: currentResult.country_code || null,
         payment_method: document.getElementById('savePaymentMethod').value,
         category: document.getElementById('saveCategory').value,
         beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
@@ -860,7 +866,7 @@ Rules:
 
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
-      .select('id,merchant,date,amount,currency,vat_amount,vat_rate,address,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
+      .select('id,merchant,date,amount,currency,vat_amount,vat_rate,address,items,country_code,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
       .order('created_at', { ascending: false });
     if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
   }
@@ -998,6 +1004,18 @@ Rules:
     document.getElementById('detailAmount').value = detailBeleg.amount != null ? Number(detailBeleg.amount).toFixed(2) : '';
     document.getElementById('detailCurrency').value = detailBeleg.currency || 'CHF';
     document.getElementById('detailImage').src = detailBeleg.image_url || '';
+    const items = detailBeleg.items;
+    const itemsSection = document.getElementById('detailItemsSection');
+    if (items && items.length) {
+      document.getElementById('detailItemsList').innerHTML = items.map((it, i) =>
+        `<div class="item-row" style="padding:8px 12px;background:${i%2?'white':'var(--cream)'}">`+
+        `<span>${esc(it.name||it.description||'')}</span>`+
+        `<span class="item-price">${it.price!=null?Number(it.price).toFixed(2):''} ${esc(detailBeleg.currency||'')}</span></div>`
+      ).join('');
+      itemsSection.style.display = 'block';
+    } else {
+      itemsSection.style.display = 'none';
+    }
     document.getElementById('detailAddress').value = detailBeleg.address || '';
     document.getElementById('detailVatAmount').value = detailBeleg.vat_amount != null ? Number(detailBeleg.vat_amount).toFixed(2) : '';
     document.getElementById('detailVatRate').value = detailBeleg.vat_rate != null ? detailBeleg.vat_rate : '';
