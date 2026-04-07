@@ -282,6 +282,22 @@
   </div>
 </div>
 
+<!-- Change password dialog -->
+<div class="dialog-overlay" id="changePasswordDialog">
+  <div class="dialog-box" style="max-width:380px">
+    <div class="dialog-body">
+      <div class="dialog-title">Passwort ändern</div>
+      <input class="dialog-input" id="newPasswordInput" type="password" placeholder="Neues Passwort" style="margin-top:12px" />
+      <input class="dialog-input" id="newPasswordConfirm" type="password" placeholder="Passwort bestätigen" style="margin-top:8px" />
+      <div id="changePasswordError" style="display:none;margin-top:8px;font-size:12px;color:var(--accent)"></div>
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" id="changePasswordCancel">Abbrechen</button>
+      <button class="dialog-confirm" id="changePasswordOk">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- Native prompt dialog -->
 <div class="dialog-overlay" id="promptDialog">
   <div class="dialog-box">
@@ -415,6 +431,7 @@
       <div class="logo">Quit<span>tungen</span></div>
       <div class="header-right">
         <span class="header-user" id="headerUser"></span>
+        <button class="btn-logout" onclick="openChangePassword()">Passwort</button>
         <button class="btn-logout" onclick="logout()">Abmelden</button>
       </div>
     </header>
@@ -1179,6 +1196,39 @@ Rules:
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
   function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
+
+  // ---- Change password ----
+  function openChangePassword() {
+    document.getElementById('newPasswordInput').value = '';
+    document.getElementById('newPasswordConfirm').value = '';
+    document.getElementById('changePasswordError').style.display = 'none';
+    document.getElementById('changePasswordDialog').classList.add('active');
+    document.getElementById('newPasswordInput').focus();
+  }
+
+  (function() {
+    const overlay = document.getElementById('changePasswordDialog');
+    const ok = document.getElementById('changePasswordOk');
+    const cancel = document.getElementById('changePasswordCancel');
+    const errEl = document.getElementById('changePasswordError');
+
+    async function doChange() {
+      const pw = document.getElementById('newPasswordInput').value;
+      const pw2 = document.getElementById('newPasswordConfirm').value;
+      errEl.style.display = 'none';
+      if (pw.length < 8) { errEl.textContent = 'Mindestens 8 Zeichen.'; errEl.style.display = 'block'; return; }
+      if (pw !== pw2) { errEl.textContent = 'Passwörter stimmen nicht überein.'; errEl.style.display = 'block'; return; }
+      ok.disabled = true; ok.textContent = '…';
+      const { error } = await sb.auth.updateUser({ password: pw });
+      ok.disabled = false; ok.textContent = 'Speichern';
+      if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+      overlay.classList.remove('active');
+    }
+
+    ok.addEventListener('click', doChange);
+    cancel.addEventListener('click', () => overlay.classList.remove('active'));
+    document.getElementById('newPasswordConfirm').addEventListener('keydown', e => { if (e.key === 'Enter') doChange(); });
+  })();
 
   // ---- Admin ----
   let adminUsers = [];
