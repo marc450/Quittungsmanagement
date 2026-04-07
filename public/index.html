@@ -414,11 +414,18 @@
     errEl.classList.remove('visible');
     try {
       if (!sb) throw new Error('App noch nicht bereit, bitte kurz warten.');
-      const { error } = await sb.auth.signInWithPassword({
+      const { data, error } = await sb.auth.signInWithPassword({
         email: document.getElementById('loginEmail').value,
         password: document.getElementById('loginPassword').value,
       });
       if (error) throw error;
+      // Handle session directly — don't rely solely on onAuthStateChange
+      if (data.session) {
+        currentUser = data.user;
+        try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
+        showApp();
+        loadBelege();
+      }
     } catch (err) {
       errEl.textContent = err.message; errEl.classList.add('visible');
       btn.disabled = false; btn.textContent = 'Anmelden';
