@@ -365,6 +365,9 @@
         <input type="text" id="detailBeschreibung" class="field-input" placeholder="Optional" />
       </div>
     </div>
+    <div id="detailRemoveFromFolder" style="display:none;padding:0 20px 12px">
+      <button onclick="removeFromFolder()" style="width:100%;padding:9px;background:transparent;border:1px dashed var(--border);border-radius:3px;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↩ Aus Mappe entfernen</button>
+    </div>
     <div class="modal-footer">
       <button class="btn-danger" onclick="deleteCurrentBeleg()">Löschen</button>
       <button class="btn-primary" onclick="saveDetailChanges()">Änderungen speichern</button>
@@ -991,7 +994,18 @@ Rules:
     document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
     document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
+    document.getElementById('detailRemoveFromFolder').style.display = detailBeleg.folder_id ? 'block' : 'none';
     document.getElementById('detailModal').classList.add('active');
+  }
+
+  async function removeFromFolder() {
+    if (!detailBeleg || !detailBeleg.folder_id) return;
+    const { error } = await sb.from('belege').update({ folder_id: null }).eq('id', detailBeleg.id);
+    if (error) { showError('Fehler: ' + error.message); return; }
+    belege = belege.map(b => b.id === detailBeleg.id ? { ...b, folder_id: null } : b);
+    closeDetail();
+    renderFolders();
+    renderBelegeList();
   }
 
   function closeDetail() {
