@@ -7,7 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(join(__dirname, 'public')));
+
+// Static assets (JS, CSS, images) can be cached
+app.use(express.static(join(__dirname, 'public'), { index: false }));
 
 // GET /api/config
 app.get('/api/config', (req, res) => {
@@ -71,8 +73,11 @@ app.post('/api/upload-image', async (req, res) => {
   res.json({ publicUrl });
 });
 
-// Fallback: serve index.html for any unmatched route
+// Serve index.html with no-cache so deploys are always picked up immediately
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
