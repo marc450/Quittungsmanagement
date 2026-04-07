@@ -439,11 +439,12 @@
     <!-- Tab bar (admins only, desktop only) -->
     <div class="tab-bar" id="tabBar" style="display:none">
       <button class="tab-btn active" id="tabBelege" onclick="switchTab('belege')">Belege</button>
+      <button class="tab-btn" id="tabUsers" onclick="switchTab('users')">Nutzerverwaltung</button>
       <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')">Administration</button>
     </div>
 
-    <!-- Admin panel -->
-    <div id="adminPanel" style="display:none">
+    <!-- Nutzerverwaltung panel -->
+    <div id="usersPanel" style="display:none">
       <div class="admin-section">
         <div class="admin-section-title">Benutzerverwaltung</div>
         <table class="admin-table" id="adminUsersTable">
@@ -451,7 +452,7 @@
           <tbody id="adminUsersTbody"><tr><td colspan="4" class="admin-empty">Laden…</td></tr></tbody>
         </table>
         <div style="margin-top:16px">
-          <button onclick="toggleCreateUserForm()" class="btn-analyze" style="font-size:11px;padding:8px 16px">+ Benutzer erstellen</button>
+          <button onclick="toggleCreateUserForm()" class="btn-analyze" style="font-size:11px;padding:8px 16px">+ Benutzer:in erstellen</button>
         </div>
         <div id="createUserForm" style="display:none" class="admin-form-grid">
           <div>
@@ -480,7 +481,10 @@
           </div>
         </div>
       </div>
+    </div>
 
+    <!-- Administration panel -->
+    <div id="adminPanel" style="display:none">
       <div class="admin-section">
         <div class="admin-section-title">Belege &amp; Mappen nach Benutzer:in</div>
         <div class="admin-user-selector">
@@ -679,6 +683,7 @@
     document.getElementById('loginScreen').style.display = 'block';
     document.getElementById('appMain').style.display = 'none';
     document.getElementById('tabBar').style.display = 'none';
+    document.getElementById('usersPanel').style.display = 'none';
     document.getElementById('adminPanel').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
   }
@@ -1240,12 +1245,17 @@ Rules:
   }
 
   function switchTab(tab) {
-    const isAdmin = tab === 'admin';
-    document.getElementById('tabBelege').classList.toggle('active', !isAdmin);
-    document.getElementById('tabAdmin').classList.toggle('active', isAdmin);
-    document.getElementById('mainContent').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('adminPanel').style.display = isAdmin ? 'block' : 'none';
-    if (isAdmin) loadAdminUsers();
+    document.getElementById('tabBelege').classList.toggle('active', tab === 'belege');
+    document.getElementById('tabUsers').classList.toggle('active', tab === 'users');
+    document.getElementById('tabAdmin').classList.toggle('active', tab === 'admin');
+    document.getElementById('mainContent').style.display = tab === 'belege' ? 'block' : 'none';
+    document.getElementById('usersPanel').style.display = tab === 'users' ? 'block' : 'none';
+    document.getElementById('adminPanel').style.display = tab === 'admin' ? 'block' : 'none';
+    if (tab === 'users' || tab === 'admin') loadAdminUsers();
+    if (tab === 'admin') {
+      const sel = document.getElementById('adminUserSelect');
+      if (sel.value) loadAdminBelege();
+    }
   }
 
   async function getAdminAuthHeader() {
