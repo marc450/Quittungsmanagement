@@ -120,6 +120,20 @@
   .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
   .summary-value { font-family: var(--serif); font-size: 24px; }
 
+  /* Folders */
+  .folders-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; align-items: center; }
+  .folder-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1.5px solid var(--border); border-radius: 20px; cursor: pointer; background: white; font-family: var(--mono); font-size: 11px; transition: all 0.15s; user-select: none; }
+  .folder-chip:hover { border-color: var(--accent); }
+  .folder-chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .folder-chip.drag-over { border-color: var(--accent); background: var(--accent-light); transform: scale(1.04); }
+  .folder-chip-count { opacity: 0.5; font-size: 10px; }
+  .folder-chip-delete { background: none; border: none; cursor: pointer; font-size: 12px; opacity: 0.35; padding: 0 0 0 2px; line-height: 1; transition: opacity 0.15s; color: inherit; }
+  .folder-chip-delete:hover { opacity: 1; }
+  .btn-new-folder { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border: 1.5px dashed var(--border); border-radius: 20px; cursor: pointer; background: transparent; font-family: var(--mono); font-size: 11px; color: var(--muted); transition: all 0.15s; }
+  .btn-new-folder:hover { border-color: var(--accent); color: var(--accent); }
+  .receipt-row { cursor: grab; }
+  .receipt-row.dragging { opacity: 0.35; }
+
   /* Inline badges */
   .pm-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
   .pm-bar { background: #e8f5e9; color: #2d7d46; }
@@ -352,6 +366,7 @@
         <div class="receipts-title">Belege</div>
         <div class="receipts-count" id="receiptsCount">0 Belege</div>
       </div>
+      <div class="folders-bar" id="foldersBar"></div>
       <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
       <div class="summary-bar hidden" id="summaryBar">
         <div>
@@ -368,6 +383,7 @@
   let sb, currentUser, currentProfile;
   let currentResult = null, croppedBase64 = null;
   let belege = [], detailBeleg = null;
+  let folders = [], currentFolderId = null, draggingBelegId = null;
 
   async function init() {
     try {
@@ -379,6 +395,7 @@
           currentUser = session.user;
           try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
           showApp();
+          loadFolders();
           loadBelege();
         } else {
           currentUser = null; currentProfile = null;
@@ -424,6 +441,7 @@
         currentUser = data.user;
         try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
         showApp();
+        loadFolders();
         loadBelege();
       }
     } catch (err) {
@@ -690,21 +708,99 @@ Rules:
 
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
-      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,abrechnung_id,created_at')
+      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
       .order('created_at', { ascending: false });
-    if (!error) { belege = data || []; renderBelegeList(); }
+    if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
+  }
+
+  async function loadFolders() {
+    const { data, error } = await sb.from('folders').select('id,name').order('created_at', { ascending: true });
+    if (!error) { folders = data || []; renderFolders(); }
+  }
+
+  function renderFolders() {
+    const el = document.getElementById('foldersBar');
+    if (!el) return;
+    const allCount = belege.length;
+    const chips = folders.map(f => {
+      const count = belege.filter(b => b.folder_id === f.id).length;
+      const active = currentFolderId === f.id ? 'active' : '';
+      return `<div class="folder-chip ${active}" onclick="filterByFolder('${f.id}')"
+                   ondragover="event.preventDefault()"
+                   ondragenter="this.classList.add('drag-over')"
+                   ondragleave="this.classList.remove('drag-over')"
+                   ondrop="dropOnFolder(event,'${f.id}')">
+        📁 <span>${esc(f.name)}</span>
+        <span class="folder-chip-count">${count}</span>
+        <button class="folder-chip-delete" onclick="event.stopPropagation();deleteFolder('${f.id}')">✕</button>
+      </div>`;
+    }).join('');
+    const allActive = currentFolderId === null ? 'active' : '';
+    el.innerHTML = `
+      <div class="folder-chip ${allActive}" onclick="filterByFolder(null)"
+           ondragover="event.preventDefault()"
+           ondragenter="this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="dropOnFolder(event,null)">
+        Alle <span class="folder-chip-count">${allCount}</span>
+      </div>
+      ${chips}
+      <button class="btn-new-folder" onclick="promptCreateFolder()">+ Neue Mappe</button>`;
+  }
+
+  function filterByFolder(id) {
+    currentFolderId = id;
+    renderFolders();
+    renderBelegeList();
+  }
+
+  async function promptCreateFolder() {
+    const name = prompt('Mappenname:');
+    if (!name || !name.trim()) return;
+    const { data, error } = await sb.from('folders').insert({ user_id: currentUser.id, name: name.trim() }).select().single();
+    if (error) { showError('Fehler: ' + error.message); return; }
+    folders.push(data);
+    renderFolders();
+  }
+
+  async function deleteFolder(id) {
+    if (!confirm('Mappe löschen? Belege bleiben erhalten.')) return;
+    const { error } = await sb.from('folders').delete().eq('id', id);
+    if (error) { showError('Fehler: ' + error.message); return; }
+    folders = folders.filter(f => f.id !== id);
+    belege = belege.map(b => b.folder_id === id ? { ...b, folder_id: null } : b);
+    if (currentFolderId === id) currentFolderId = null;
+    renderFolders();
+    renderBelegeList();
+  }
+
+  function startDrag(event, id) {
+    draggingBelegId = id;
+    event.dataTransfer.effectAllowed = 'move';
+  }
+
+  async function dropOnFolder(event, folderId) {
+    event.currentTarget.classList.remove('drag-over');
+    if (!draggingBelegId) return;
+    const id = draggingBelegId; draggingBelegId = null;
+    const { error } = await sb.from('belege').update({ folder_id: folderId }).eq('id', id);
+    if (error) { showError('Fehler: ' + error.message); return; }
+    belege = belege.map(b => b.id === id ? { ...b, folder_id: folderId } : b);
+    renderFolders();
+    renderBelegeList();
   }
 
   function renderBelegeList() {
     const el = document.getElementById('receiptsList');
-    document.getElementById('receiptsCount').textContent = belege.length + ' Beleg' + (belege.length !== 1 ? 'e' : '');
-    if (belege.length === 0) {
-      el.innerHTML = '<div class="receipts-empty">Noch keine Belege erfasst</div>';
+    const filtered = currentFolderId === null ? belege : belege.filter(b => b.folder_id === currentFolderId);
+    document.getElementById('receiptsCount').textContent = filtered.length + ' Beleg' + (filtered.length !== 1 ? 'e' : '');
+    if (filtered.length === 0) {
+      el.innerHTML = '<div class="receipts-empty">Keine Belege in dieser Mappe</div>';
       document.getElementById('summaryBar').classList.add('hidden');
       return;
     }
-    el.innerHTML = belege.map(b => `
-      <div class="receipt-row">
+    el.innerHTML = filtered.map(b => `
+      <div class="receipt-row" draggable="true" ondragstart="startDrag(event,'${b.id}')" ondragend="this.classList.remove('dragging')" onmousedown="this.classList.add('dragging')" onmouseup="this.classList.remove('dragging')">
         <img class="receipt-thumb" src="${esc(b.image_url||'')}"
              onclick="openDetail('${b.id}')" onerror="this.style.opacity='0.15'" />
         <div class="receipt-info">
@@ -721,7 +817,7 @@ Rules:
         <button class="btn-remove" onclick="confirmDelete('${b.id}')">✕</button>
       </div>`).join('');
     document.getElementById('summaryBar').classList.remove('hidden');
-    const total = belege.reduce((s,b) => s + (Number(b.amount)||0), 0);
+    const total = filtered.reduce((s,b) => s + (Number(b.amount)||0), 0);
     document.getElementById('summaryTotal').textContent = total.toFixed(2);
   }
 
