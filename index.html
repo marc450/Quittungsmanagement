@@ -540,7 +540,7 @@
       sb.auth.onAuthStateChange(async (event, session) => {
         if (session) {
           currentUser = session.user;
-          try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
+          loadProfile().catch(e => console.error('loadProfile:', e));
           showApp();
           loadFolders();
           loadBelege();
