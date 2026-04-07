@@ -161,6 +161,27 @@
   .btn-primary { flex: 2; padding: 10px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
   .btn-primary:hover { background: var(--accent); }
 
+  /* Native dialog modals */
+  .dialog-overlay { display: none; position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; padding: 24px; }
+  .dialog-overlay.active { display: flex; }
+  .dialog-box { background: white; border-radius: 8px; width: 100%; max-width: 340px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+  .dialog-body { padding: 24px 24px 16px; }
+  .dialog-title { font-family: var(--serif); font-size: 17px; margin-bottom: 8px; }
+  .dialog-msg { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .dialog-input { width: 100%; margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 3px; font-family: var(--mono); font-size: 13px; background: var(--paper); outline: none; transition: border-color 0.15s; }
+  .dialog-input:focus { border-color: var(--ink); }
+  .dialog-footer { display: flex; gap: 8px; padding: 12px 16px; background: var(--cream); border-top: 1px solid var(--border); }
+  .dialog-cancel { flex: 1; padding: 10px; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 3px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+  .dialog-cancel:hover { border-color: var(--ink); color: var(--ink); }
+  .dialog-confirm { flex: 2; padding: 10px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .dialog-confirm:hover { background: var(--accent); }
+  .dialog-confirm.danger { background: var(--accent); }
+  .dialog-confirm.danger:hover { background: #a33208; }
+  @media (max-width: 600px) {
+    .dialog-overlay { align-items: flex-end; padding: 0; }
+    .dialog-box { border-radius: 16px 16px 0 0; max-width: 100%; }
+  }
+
   /* Cropper */
   .cropper-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: #111; flex-direction: column; }
   .cropper-overlay.active { display: flex; }
@@ -217,6 +238,34 @@
 </style>
 </head>
 <body>
+
+<!-- Native confirm dialog -->
+<div class="dialog-overlay" id="confirmDialog">
+  <div class="dialog-box">
+    <div class="dialog-body">
+      <div class="dialog-title" id="confirmTitle">Bestätigen</div>
+      <div class="dialog-msg" id="confirmMsg"></div>
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" id="confirmCancel">Abbrechen</button>
+      <button class="dialog-confirm danger" id="confirmOk">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Native prompt dialog -->
+<div class="dialog-overlay" id="promptDialog">
+  <div class="dialog-box">
+    <div class="dialog-body">
+      <div class="dialog-title" id="promptTitle"></div>
+      <input class="dialog-input" id="promptInput" type="text" />
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" id="promptCancel">Abbrechen</button>
+      <button class="dialog-confirm" id="promptOk">OK</button>
+    </div>
+  </div>
+</div>
 
 <!-- Login -->
 <div id="loginScreen">
@@ -412,6 +461,54 @@
 </div>
 
 <script>
+  function nativeConfirm(msg, title = 'Bestätigen') {
+    return new Promise(resolve => {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMsg').textContent = msg;
+      const overlay = document.getElementById('confirmDialog');
+      overlay.classList.add('active');
+      const ok = document.getElementById('confirmOk');
+      const cancel = document.getElementById('confirmCancel');
+      function done(result) {
+        overlay.classList.remove('active');
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        resolve(result);
+      }
+      function onOk() { done(true); }
+      function onCancel() { done(false); }
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+    });
+  }
+
+  function nativePrompt(title, placeholder = '') {
+    return new Promise(resolve => {
+      document.getElementById('promptTitle').textContent = title;
+      const input = document.getElementById('promptInput');
+      input.value = '';
+      input.placeholder = placeholder;
+      const overlay = document.getElementById('promptDialog');
+      overlay.classList.add('active');
+      input.focus();
+      const ok = document.getElementById('promptOk');
+      const cancel = document.getElementById('promptCancel');
+      function done(result) {
+        overlay.classList.remove('active');
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        input.removeEventListener('keydown', onKey);
+        resolve(result);
+      }
+      function onOk() { done(input.value.trim() || null); }
+      function onCancel() { done(null); }
+      function onKey(e) { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); }
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+      input.addEventListener('keydown', onKey);
+    });
+  }
+
   const { createClient } = supabase;
   let sb, currentUser, currentProfile;
   let currentResult = null, croppedBase64 = null;
@@ -788,8 +885,8 @@ Rules:
   }
 
   async function promptCreateFolder() {
-    const name = prompt('Mappenname:');
-    if (!name || !name.trim()) return;
+    const name = await nativePrompt('Mappenname', 'z.B. Geschäftsreise Mai');
+    if (!name) return;
     const { data, error } = await sb.from('folders').insert({ user_id: currentUser.id, name: name.trim() }).select().single();
     if (error) { showError('Fehler: ' + error.message); return; }
     folders.push(data);
@@ -797,7 +894,7 @@ Rules:
   }
 
   async function deleteFolder(id) {
-    if (!confirm('Mappe löschen? Belege bleiben erhalten.')) return;
+    if (!await nativeConfirm('Belege bleiben erhalten.', 'Mappe löschen?')) return;
     const { error } = await sb.from('folders').delete().eq('id', id);
     if (error) { showError('Fehler: ' + error.message); return; }
     folders = folders.filter(f => f.id !== id);
@@ -855,7 +952,7 @@ Rules:
   }
 
   async function confirmDelete(id) {
-    if (!confirm('Beleg löschen?')) return;
+    if (!await nativeConfirm('Beleg unwiderruflich löschen?', 'Beleg löschen')) return;
     const { error } = await sb.from('belege').delete().eq('id', id);
     if (!error) await loadBelege();
     else showError('Fehler: ' + error.message);
@@ -900,15 +997,16 @@ Rules:
       beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
       folder_id: document.getElementById('detailFolder').value || null,
     }).eq('id', detailBeleg.id);
-    if (error) { alert('Fehler: ' + error.message); return; }
+    if (error) { showError('Fehler: ' + error.message); return; }
     closeDetail();
     await loadBelege();
   }
 
   async function deleteCurrentBeleg() {
-    if (!detailBeleg || !confirm('Beleg löschen?')) return;
+    if (!detailBeleg) return;
+    if (!await nativeConfirm('Beleg unwiderruflich löschen?', 'Beleg löschen')) return;
     const { error } = await sb.from('belege').delete().eq('id', detailBeleg.id);
-    if (error) { alert('Fehler: ' + error.message); return; }
+    if (error) { showError('Fehler: ' + error.message); return; }
     closeDetail();
     await loadBelege();
   }
