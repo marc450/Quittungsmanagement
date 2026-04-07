@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quittungen · Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1a1a; --paper: #f5f0e8; --cream: #ede8dc; --accent: #c8440a;
+    --accent-light: #f2ece3; --muted: #8a8070; --border: #d4ccbc;
+    --success: #2d7d46; --mono: 'DM Mono', monospace; --serif: 'DM Serif Display', serif;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: var(--mono); font-weight: 300; min-height: 100vh; font-size: 13px; line-height: 1.6; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+
+  /* Login */
+  .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-card { width: 100%; max-width: 360px; background: white; border: 1.5px solid var(--border); border-radius: 6px; padding: 40px; }
+  .login-logo { font-family: var(--serif); font-size: 28px; letter-spacing: -0.5px; margin-bottom: 32px; }
+  .login-logo span { color: var(--accent); font-style: italic; }
+  .login-field { margin-bottom: 16px; }
+  .login-field label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; }
+  .login-field input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 3px; font-family: var(--mono); font-size: 13px; background: var(--paper); outline: none; transition: border-color 0.15s; }
+  .login-field input:focus { border-color: var(--ink); }
+  .btn-login { width: 100%; padding: 12px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+  .btn-login:hover { background: var(--accent); }
+  .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Header */
+  header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1.5px solid var(--border); }
+  .logo { font-family: var(--serif); font-size: 28px; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); font-style: italic; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-user { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .btn-logout { font-family: var(--mono); font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 3px; padding: 4px 10px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.15s; }
+  .btn-logout:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Upload */
+  .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 12px; }
+  .drop-zone { border: 1.5px dashed var(--border); border-radius: 4px; padding: 48px 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--cream); position: relative; overflow: hidden; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5; }
+  .drop-text { font-size: 13px; color: var(--muted); }
+  .drop-text strong { color: var(--accent); font-weight: 500; }
+  .drop-hint { font-size: 11px; color: var(--muted); margin-top: 6px; opacity: 0.7; }
+  .preview-area { display: none; margin-top: 20px; gap: 20px; align-items: flex-start; }
+  .preview-area.visible { display: flex; }
+  .preview-img { width: 140px; min-width: 140px; border-radius: 3px; border: 1.5px solid var(--border); object-fit: cover; max-height: 200px; }
+  .preview-meta { flex: 1; }
+  .preview-filename { font-weight: 500; margin-bottom: 4px; }
+  .preview-size { color: var(--muted); font-size: 11px; }
+  .btn-analyze { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 10px 20px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .btn-analyze:hover { background: var(--accent); }
+  .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-analyze .spinner { width: 12px; height: 12px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  .btn-analyze.loading .spinner { display: block; }
+  .btn-analyze.loading .btn-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Result card */
+  .result-card { display: none; background: white; border: 1.5px solid var(--border); border-radius: 4px; overflow: hidden; margin-top: 32px; animation: slideIn 0.3s ease; }
+  .result-card.visible { display: block; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .result-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--cream); border-bottom: 1.5px solid var(--border); }
+  .result-title { font-family: var(--serif); font-size: 16px; }
+  .badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 2px; font-weight: 500; }
+  .badge-ch { background: #fff3e0; color: #b85c00; border: 1px solid #f0c080; }
+  .badge-eu { background: #e8f0fe; color: #1a56db; border: 1px solid #c0d0f0; }
+  .badge-other { background: var(--cream); color: var(--muted); border: 1px solid var(--border); }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .result-cell { padding: 16px 20px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .result-cell:nth-child(even) { border-right: none; }
+  .result-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .cell-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 4px; }
+  .cell-value { font-size: 15px; font-weight: 500; }
+  .cell-value.total { font-family: var(--serif); font-size: 22px; color: var(--accent); }
+  .cell-value.vat { color: var(--success); }
+  .cell-value.muted { color: var(--muted); font-size: 12px; font-style: italic; }
+  .result-address { padding: 16px 20px; border-top: 1.5px solid var(--border); background: var(--cream); }
+  .address-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; }
+  .items-section { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .items-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 10px; }
+  .item-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted var(--border); font-size: 12px; }
+  .item-row:last-child { border-bottom: none; }
+  .item-price { color: var(--muted); font-weight: 500; }
+
+  /* Save form */
+  .save-form { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--accent-light); }
+  .save-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .field-select, .field-input { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 3px; font-family: var(--mono); font-size: 12px; background: white; outline: none; transition: border-color 0.15s; }
+  .field-select:focus, .field-input:focus { border-color: var(--ink); }
+
+  /* Error */
+  .error-msg { display: none; padding: 12px 16px; background: #fff0ee; border: 1px solid #f0c0b8; border-radius: 3px; color: var(--accent); font-size: 12px; margin-top: 16px; word-break: break-all; }
+  .error-msg.visible { display: block; }
+
+  /* Belege list */
+  .receipts-section { margin-top: 48px; padding-top: 32px; border-top: 1.5px solid var(--border); }
+  .receipts-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+  .receipts-title { font-family: var(--serif); font-size: 20px; }
+  .receipts-count { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .receipts-empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 4px; background: var(--cream); }
+  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; }
+  .receipt-row:hover { border-color: var(--accent); }
+  .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s; }
+  .receipt-thumb:hover { opacity: 0.75; }
+  .receipt-info .merchant { font-weight: 500; font-size: 13px; }
+  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
+  .receipt-status { font-size: 10px; }
+  .btn-remove { background: none; border: none; cursor: pointer; color: var(--border); font-size: 16px; transition: color 0.15s; padding: 4px; }
+  .btn-remove:hover { color: var(--accent); }
+  .summary-bar { display: flex; margin-top: 20px; padding: 16px 20px; background: var(--ink); color: var(--paper); border-radius: 3px; justify-content: space-between; align-items: center; }
+  .summary-bar.hidden { display: none; }
+  .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
+  .summary-value { font-family: var(--serif); font-size: 24px; }
+
+  /* Inline badges */
+  .pm-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+  .pm-bar { background: #e8f5e9; color: #2d7d46; }
+  .pm-maestro { background: #e3f2fd; color: #1565c0; }
+  .pm-kk { background: #fce4ec; color: #c62828; }
+  .cat-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; background: #f3e5f5; color: #6a1b9a; }
+
+  /* Detail modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay.active { display: flex; }
+  .modal-card { background: white; border-radius: 6px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: var(--cream); border-bottom: 1.5px solid var(--border); flex-shrink: 0; }
+  .modal-title { font-family: var(--serif); font-size: 18px; }
+  .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); padding: 4px 8px; transition: color 0.15s; line-height: 1; }
+  .modal-close:hover { color: var(--ink); }
+  .modal-image { width: 100%; max-height: 320px; object-fit: contain; background: var(--cream); border-bottom: 1px solid var(--border); }
+  .modal-body { padding: 20px; flex: 1; }
+  .modal-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field:last-child { margin-bottom: 0; }
+  .modal-footer { display: flex; gap: 10px; padding: 16px 20px; border-top: 1.5px solid var(--border); background: var(--cream); flex-shrink: 0; }
+  .btn-danger { flex: 1; padding: 10px; background: transparent; border: 1px solid #f0c0b8; color: var(--accent); border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+  .btn-danger:hover { background: #fff0ee; }
+  .btn-primary { flex: 2; padding: 10px; background: var(--ink); color: var(--paper); border: none; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: var(--accent); }
+
+  /* Cropper */
+  .cropper-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: #111; flex-direction: column; }
+  .cropper-overlay.active { display: flex; }
+  .cropper-topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #1a1a1a; flex-shrink: 0; }
+  .cropper-title { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.6); }
+  .cropper-hint { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.35); text-align: center; padding: 6px 18px; flex-shrink: 0; }
+  .cropper-stage { flex: 1; position: relative; overflow: hidden; touch-action: none; cursor: crosshair; }
+  .cropper-stage canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55); box-sizing: border-box; pointer-events: none; }
+  .crop-handle { position: absolute; width: 22px; height: 22px; pointer-events: none; }
+  .crop-handle::before, .crop-handle::after { content: ''; position: absolute; background: #fff; }
+  .crop-handle.tl { top: -2px; left: -2px; } .crop-handle.tl::before { width: 3px; height: 18px; top: 0; left: 0; } .crop-handle.tl::after { width: 18px; height: 3px; top: 0; left: 0; }
+  .crop-handle.tr { top: -2px; right: -2px; } .crop-handle.tr::before { width: 3px; height: 18px; top: 0; right: 0; } .crop-handle.tr::after { width: 18px; height: 3px; top: 0; right: 0; }
+  .crop-handle.bl { bottom: -2px; left: -2px; } .crop-handle.bl::before { width: 3px; height: 18px; bottom: 0; left: 0; } .crop-handle.bl::after { width: 18px; height: 3px; bottom: 0; left: 0; }
+  .crop-handle.br { bottom: -2px; right: -2px; } .crop-handle.br::before { width: 3px; height: 18px; bottom: 0; right: 0; } .crop-handle.br::after { width: 18px; height: 3px; bottom: 0; right: 0; }
+  .cropper-bottombar { display: flex; gap: 10px; padding: 14px 18px; background: #1a1a1a; flex-shrink: 0; }
+  .btn-crop-cancel { flex: 1; padding: 13px; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); border-radius: 3px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+  .btn-crop-confirm { flex: 2; padding: 13px; background: var(--accent); border: none; color: #fff; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+
+  @media (max-width: 600px) {
+    .result-grid { grid-template-columns: 1fr; } .result-cell { border-right: none; }
+    .receipt-row { grid-template-columns: 40px 1fr auto; } .receipt-status, .btn-remove { display: none; }
+    header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .save-form-grid { grid-template-columns: 1fr; }
+    .modal-info-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">Quit<span>tungen</span></div>
+      <form id="loginForm">
+        <div class="login-field">
+          <label>E-Mail</label>
+          <input type="email" id="loginEmail" autocomplete="email" required />
+        </div>
+        <div class="login-field">
+          <label>Passwort</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required />
+        </div>
+        <div class="error-msg" id="loginError" style="margin-top:0;margin-bottom:12px"></div>
+        <button type="submit" class="btn-login" id="loginBtn">Anmelden</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Cropper -->
+<div class="cropper-overlay" id="cropperOverlay">
+  <div class="cropper-topbar"><div class="cropper-title">Quittung zuschneiden</div></div>
+  <div class="cropper-hint">Rahmen verschieben &amp; Ecken ziehen · nur Quittung einschließen</div>
+  <div class="cropper-stage" id="cropStage">
+    <canvas id="cropCanvas"></canvas>
+    <div class="crop-box" id="cropBox">
+      <div class="crop-handle tl"></div><div class="crop-handle tr"></div>
+      <div class="crop-handle bl"></div><div class="crop-handle br"></div>
+    </div>
+  </div>
+  <div class="cropper-bottombar">
+    <button class="btn-crop-cancel" onclick="closeCropper()">Abbrechen</button>
+    <button class="btn-crop-confirm" onclick="confirmCrop()">✓ Zuschneiden &amp; Analysieren</button>
+  </div>
+</div>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title" id="detailMerchant">—</div>
+      <button class="modal-close" onclick="closeDetail()">✕</button>
+    </div>
+    <img id="detailImage" class="modal-image" src="" alt="Beleg" />
+    <div class="modal-body">
+      <div class="modal-info-grid">
+        <div>
+          <div class="cell-label">Betrag</div>
+          <div class="cell-value total" id="detailAmount">—</div>
+        </div>
+        <div>
+          <div class="cell-label">Datum</div>
+          <div class="cell-value" id="detailDate">—</div>
+        </div>
+      </div>
+      <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
+        <select id="detailPaymentMethod" class="field-select">
+          <option value="Bar">Bar</option>
+          <option value="Maestro">Maestro</option>
+          <option value="KK">Kreditkarte (KK)</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
+        <select id="detailCategory" class="field-select">
+          <option value="Barauslage">Barauslage</option>
+          <option value="Essen Privat">Essen Privat</option>
+          <option value="Essen Firma">Essen Firma</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">Beschreibung</div>
+        <input type="text" id="detailBeschreibung" class="field-input" placeholder="Optional" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" onclick="deleteCurrentBeleg()">Löschen</button>
+      <button class="btn-primary" onclick="saveDetailChanges()">Änderungen speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="appMain" style="display:none">
+  <div class="wrap">
+    <header>
+      <div class="logo">Quit<span>tungen</span></div>
+      <div class="header-right">
+        <span class="header-user" id="headerUser"></span>
+        <button class="btn-logout" onclick="logout()">Abmelden</button>
+      </div>
+    </header>
+
+    <div class="upload-section" style="margin-bottom:32px">
+      <div class="section-label">Quittung hochladen</div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*,.pdf" />
+        <span class="drop-icon">🧾</span>
+        <div class="drop-text">Datei hierher ziehen oder <strong>auswählen</strong></div>
+        <div class="drop-hint">JPG, PNG, HEIC — max. 10 MB</div>
+      </div>
+      <div class="preview-area" id="previewArea">
+        <img class="preview-img" id="previewImg" src="" alt="Vorschau" />
+        <div class="preview-meta">
+          <div class="preview-filename" id="previewName">—</div>
+          <div class="preview-size" id="previewSize">—</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+            <button class="btn-analyze" id="cropBtn" onclick="openCropper()">✂ Zuschneiden</button>
+            <button class="btn-analyze" id="analyzeBtn" onclick="analyzeReceipt()" style="display:none">
+              <span class="spinner"></span><span class="btn-label">Analysieren</span>
+            </button>
+          </div>
+          <div id="cropDoneNote" style="display:none;margin-top:8px;font-size:11px;color:var(--success)">✓ Zugeschnitten</div>
+        </div>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <div class="result-title" id="resultMerchant">—</div>
+        <div class="badge" id="countryBadge">—</div>
+      </div>
+      <div class="result-grid">
+        <div class="result-cell"><div class="cell-label">Gesamtbetrag</div><div class="cell-value total" id="resultTotal">—</div></div>
+        <div class="result-cell"><div class="cell-label">Währung</div><div class="cell-value" id="resultCurrency">—</div></div>
+        <div class="result-cell"><div class="cell-label">Datum</div><div class="cell-value" id="resultDate">—</div></div>
+        <div class="result-cell"><div class="cell-label">MwSt (Schweiz)</div><div class="cell-value vat" id="resultVAT">—</div></div>
+      </div>
+      <div id="itemsSection" class="items-section" style="display:none">
+        <div class="items-label">Positionen</div>
+        <div id="itemsList"></div>
+      </div>
+      <div class="result-address">
+        <div class="address-label">Adresse / Ort</div>
+        <div class="address-text" id="resultAddress">—</div>
+      </div>
+      <div class="save-form">
+        <div class="section-label" style="margin-bottom:12px">Kategorisierung</div>
+        <div class="save-form-grid">
+          <div>
+            <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
+            <select id="savePaymentMethod" class="field-select">
+              <option value="Bar">Bar</option>
+              <option value="Maestro">Maestro</option>
+              <option value="KK">Kreditkarte (KK)</option>
+            </select>
+          </div>
+          <div>
+            <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
+            <select id="saveCategory" class="field-select">
+              <option value="Barauslage">Barauslage</option>
+              <option value="Essen Privat">Essen Privat</option>
+              <option value="Essen Firma">Essen Firma</option>
+            </select>
+          </div>
+        </div>
+        <input type="text" id="saveBeschreibung" class="field-input" placeholder="Beschreibung (optional)" style="margin-bottom:12px" />
+        <button class="btn-analyze" id="saveBelegBtn" onclick="saveBeleg()" style="background:var(--success)">
+          <span class="spinner"></span><span class="btn-label">✓ Speichern</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="receipts-section">
+      <div class="receipts-header">
+        <div class="receipts-title">Belege</div>
+        <div class="receipts-count" id="receiptsCount">0 Belege</div>
+      </div>
+      <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
+      <div class="summary-bar hidden" id="summaryBar">
+        <div>
+          <div class="summary-label">Total (alle Währungen gemischt)</div>
+          <div class="summary-value" id="summaryTotal">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const { createClient } = supabase;
+  let sb, currentUser, currentProfile;
+  let currentResult = null, croppedBase64 = null;
+  let belege = [], detailBeleg = null;
+
+  async function init() {
+    try {
+      const cfg = await fetch('/api/config').then(r => r.json());
+      sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (session) {
+          currentUser = session.user;
+          try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
+          showApp();
+          loadBelege();
+        } else {
+          currentUser = null; currentProfile = null;
+          showLogin();
+        }
+      });
+    } catch (err) {
+      document.body.innerHTML = `<div style="padding:40px;font-family:monospace;color:#c8440a">Init-Fehler: ${err.message}</div>`;
+    }
+  }
+
+  async function loadProfile() {
+    const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = data;
+  }
+
+  function showLogin() {
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('appMain').style.display = 'none';
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appMain').style.display = 'block';
+    document.getElementById('headerUser').textContent = currentUser.email;
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginError');
+    btn.disabled = true; btn.textContent = '…';
+    errEl.classList.remove('visible');
+    const { error } = await sb.auth.signInWithPassword({
+      email: document.getElementById('loginEmail').value,
+      password: document.getElementById('loginPassword').value,
+    });
+    if (error) {
+      errEl.textContent = error.message; errEl.classList.add('visible');
+      btn.disabled = false; btn.textContent = 'Anmelden';
+    }
+  });
+
+  async function logout() { await sb.auth.signOut(); }
+
+  // File & crop
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+  document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+  function handleFile(file) {
+    currentResult = null; croppedBase64 = null;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('previewImg').src = e.target.result;
+      document.getElementById('previewName').textContent = file.name;
+      document.getElementById('previewSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+      document.getElementById('previewArea').classList.add('visible');
+      document.getElementById('resultCard').classList.remove('visible');
+      document.getElementById('analyzeBtn').style.display = 'none';
+      document.getElementById('cropDoneNote').style.display = 'none';
+      document.getElementById('cropBtn').style.display = 'inline-flex';
+      hideError();
+      openCropper();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  let cropImg, cropImgW, cropImgH, stageW, stageH, imgOffX, imgOffY, imgRenderW, imgRenderH;
+  let crop = {x:0,y:0,w:0,h:0}, drag = null;
+  const MIN_CROP = 40, HANDLE_HIT = 28;
+
+  function openCropper() {
+    document.getElementById('cropperOverlay').classList.add('active');
+    const stage = document.getElementById('cropStage');
+    const canvas = document.getElementById('cropCanvas');
+    cropImg = new Image();
+    cropImg.onload = () => {
+      cropImgW = cropImg.naturalWidth; cropImgH = cropImg.naturalHeight;
+      stageW = stage.offsetWidth; stageH = stage.offsetHeight;
+      canvas.width = stageW; canvas.height = stageH;
+      const scale = Math.min(stageW / cropImgW, stageH / cropImgH);
+      imgRenderW = cropImgW * scale; imgRenderH = cropImgH * scale;
+      imgOffX = (stageW - imgRenderW) / 2; imgOffY = (stageH - imgRenderH) / 2;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, stageW, stageH);
+      ctx.drawImage(cropImg, imgOffX, imgOffY, imgRenderW, imgRenderH);
+      const pad = Math.min(imgRenderW, imgRenderH) * 0.05;
+      crop = {x: imgOffX+pad, y: imgOffY+pad, w: imgRenderW-pad*2, h: imgRenderH-pad*2};
+      updateCropBox();
+    };
+    cropImg.src = document.getElementById('previewImg').src;
+    stage.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }
+
+  function closeCropper() {
+    document.getElementById('cropperOverlay').classList.remove('active');
+    const stage = document.getElementById('cropStage');
+    stage.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+  }
+
+  function updateCropBox() {
+    const box = document.getElementById('cropBox');
+    box.style.left = crop.x+'px'; box.style.top = crop.y+'px';
+    box.style.width = crop.w+'px'; box.style.height = crop.h+'px';
+  }
+
+  function getStagePos(e) {
+    const r = document.getElementById('cropStage').getBoundingClientRect();
+    return {x: e.clientX - r.left, y: e.clientY - r.top};
+  }
+
+  function hitTest(px, py) {
+    const {x,y,w,h} = crop;
+    const corners = {tl:{cx:x,cy:y},tr:{cx:x+w,cy:y},bl:{cx:x,cy:y+h},br:{cx:x+w,cy:y+h}};
+    for (const [k,c] of Object.entries(corners)) {
+      if (Math.abs(px-c.cx)<HANDLE_HIT && Math.abs(py-c.cy)<HANDLE_HIT) return k;
+    }
+    if (px>x && px<x+w && py>y && py<y+h) return 'move';
+    return null;
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    const {x,y} = getStagePos(e);
+    const mode = hitTest(x,y);
+    if (!mode) return;
+    drag = {mode, startX:x, startY:y, origCrop:{...crop}};
+    document.getElementById('cropStage').setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (!drag) return; e.preventDefault();
+    const {x,y} = getStagePos(e);
+    const dx = x-drag.startX, dy = y-drag.startY, o = drag.origCrop;
+    const minX=imgOffX, maxX=imgOffX+imgRenderW, minY=imgOffY, maxY=imgOffY+imgRenderH;
+    let nx=o.x, ny=o.y, nw=o.w, nh=o.h;
+    if (drag.mode==='move') {
+      nx=Math.max(minX,Math.min(maxX-nw,o.x+dx)); ny=Math.max(minY,Math.min(maxY-nh,o.y+dy));
+    } else if (drag.mode==='tl') {
+      nx=Math.max(minX,Math.min(o.x+o.w-MIN_CROP,o.x+dx)); ny=Math.max(minY,Math.min(o.y+o.h-MIN_CROP,o.y+dy)); nw=o.x+o.w-nx; nh=o.y+o.h-ny;
+    } else if (drag.mode==='tr') {
+      ny=Math.max(minY,Math.min(o.y+o.h-MIN_CROP,o.y+dy)); nw=Math.max(MIN_CROP,Math.min(maxX-nx,o.w+dx)); nh=o.y+o.h-ny;
+    } else if (drag.mode==='bl') {
+      nx=Math.max(minX,Math.min(o.x+o.w-MIN_CROP,o.x+dx)); nw=o.x+o.w-nx; nh=Math.max(MIN_CROP,Math.min(maxY-ny,o.h+dy));
+    } else if (drag.mode==='br') {
+      nw=Math.max(MIN_CROP,Math.min(maxX-nx,o.w+dx)); nh=Math.max(MIN_CROP,Math.min(maxY-ny,o.h+dy));
+    }
+    crop={x:nx,y:ny,w:nw,h:nh}; updateCropBox();
+  }
+
+  function onPointerUp() { drag = null; }
+
+  function confirmCrop() {
+    const scaleX=cropImgW/imgRenderW, scaleY=cropImgH/imgRenderH;
+    const srcX=Math.round((crop.x-imgOffX)*scaleX), srcY=Math.round((crop.y-imgOffY)*scaleY);
+    const srcW=Math.round(crop.w*scaleX), srcH=Math.round(crop.h*scaleY);
+    const MAX=1200; let outW=srcW, outH=srcH;
+    if (outW>MAX||outH>MAX) { const s=Math.min(MAX/outW,MAX/outH); outW=Math.round(outW*s); outH=Math.round(outH*s); }
+    const out=document.createElement('canvas'); out.width=outW; out.height=outH;
+    out.getContext('2d').drawImage(cropImg,srcX,srcY,srcW,srcH,0,0,outW,outH);
+    const dataUrl=out.toDataURL('image/jpeg',0.92);
+    croppedBase64=dataUrl.split(',')[1];
+    document.getElementById('previewImg').src=dataUrl;
+    closeCropper();
+    document.getElementById('cropBtn').style.display='none';
+    document.getElementById('analyzeBtn').style.display='inline-flex';
+    document.getElementById('cropDoneNote').style.display='block';
+    analyzeReceipt();
+  }
+
+  async function analyzeReceipt() {
+    if (!croppedBase64) { showError('Kein Bild zugeschnitten.'); return; }
+    const btn = document.getElementById('analyzeBtn');
+    btn.classList.add('loading'); btn.disabled = true; hideError();
+    try {
+      const payload = {
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: croppedBase64 } },
+          { type: "text", text: `You are a receipt parser. Extract data from this receipt image and respond with ONLY a raw JSON object — no markdown, no explanation, no code fences. Start with { and end with }.
+
+Use exactly this structure:
+{"merchant":"string","date":"string","total":number_or_null,"currency":"string","address":"string","city":"string","country":"string","country_code":"2-letter ISO","is_switzerland":true_or_false,"vat_rate":number_or_null,"vat_amount":number_or_null,"net_amount":number_or_null,"items":[{"name":"string","price":number}],"notes":"string"}
+
+Rules:
+- total: number only e.g. 12.50, null if unreadable
+- For Swiss receipts: vat_rate=8.1, vat_amount=total/1.081*0.081, net_amount=total/1.081
+- items: line items if visible, empty array if not
+- null for any unreadable field` }
+        ]}]
+      };
+      const response = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      let data;
+      try { data = await response.json(); } catch(e) { throw new Error('HTTP ' + response.status + ': Response war kein JSON'); }
+      if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (data?.error?.message || JSON.stringify(data)));
+      if (!data.content || !data.content.length) throw new Error('Leere API-Antwort');
+      const text = data.content.map(b => b.text || '').join('').trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Kein JSON in: ' + text.slice(0, 200));
+      currentResult = JSON.parse(jsonMatch[0]);
+      renderResult(currentResult);
+    } catch (err) {
+      showError('Fehler: ' + (err.message || String(err)));
+    }
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+
+  function renderResult(r) {
+    document.getElementById('resultMerchant').textContent = r.merchant || 'Unbekannt';
+    document.getElementById('resultTotal').textContent = (r.total != null ? r.total.toFixed(2) : '—') + (r.currency ? ' ' + r.currency : '');
+    document.getElementById('resultCurrency').textContent = r.currency || '—';
+    document.getElementById('resultDate').textContent = r.date || '—';
+    document.getElementById('resultAddress').textContent = r.address || r.city || '—';
+    const badge = document.getElementById('countryBadge');
+    if (r.country_code === 'CH' || r.is_switzerland) { badge.textContent = '🇨🇭 Schweiz'; badge.className = 'badge badge-ch'; }
+    else if (['DE','AT','FR','IT','ES','NL','BE'].includes(r.country_code)) { badge.textContent = '🇪🇺 ' + (r.country || r.country_code); badge.className = 'badge badge-eu'; }
+    else { badge.textContent = r.country || r.country_code || 'Unbekannt'; badge.className = 'badge badge-other'; }
+    const vatEl = document.getElementById('resultVAT');
+    if (r.is_switzerland && r.vat_amount != null) { vatEl.textContent = r.vat_amount.toFixed(2) + ' ' + r.currency + ' (' + r.vat_rate + '%)'; vatEl.className = 'cell-value vat'; }
+    else { vatEl.textContent = r.is_switzerland ? 'Nicht berechenbar' : 'Nicht Schweiz'; vatEl.className = 'cell-value muted'; }
+    if (r.items && r.items.length > 0) {
+      document.getElementById('itemsSection').style.display = 'block';
+      document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
+    } else { document.getElementById('itemsSection').style.display = 'none'; }
+    document.getElementById('analyzeBtn').style.display = 'none';
+    document.getElementById('cropDoneNote').style.display = 'none';
+    document.getElementById('resultCard').classList.add('visible');
+    document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+    document.getElementById('savePaymentMethod').value = 'Bar';
+    document.getElementById('saveCategory').value = 'Barauslage';
+    document.getElementById('saveBeschreibung').value = '';
+  }
+
+  function base64ToBlob(b64, mime) {
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  async function saveBeleg() {
+    if (!currentResult || !currentUser) return;
+    const btn = document.getElementById('saveBelegBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+
+    try {
+      // Upload image via server proxy (avoids browser CORS)
+      const fileName = `${currentUser.id}/${Date.now()}.jpg`;
+      const sessionResult = await sb.auth.getSession();
+      const session = sessionResult.data?.session;
+      if (!session) throw new Error('Keine Session – bitte neu einloggen.');
+      const b64Len = croppedBase64 ? croppedBase64.length : 0;
+      console.log('saveBeleg: fileName=', fileName, 'b64 length=', b64Len);
+      const uploadRes = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ imageBase64: croppedBase64, fileName }),
+      });
+      console.log('saveBeleg: upload status=', uploadRes.status);
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error('Upload ' + uploadRes.status + ': ' + (uploadData.error || JSON.stringify(uploadData)));
+      const publicUrl = uploadData.publicUrl;
+
+      const { error } = await sb.from('belege').insert({
+        user_id: currentUser.id,
+        merchant: currentResult.merchant || null,
+        date: currentResult.date || null,
+        amount: currentResult.total ?? null,
+        currency: currentResult.currency || null,
+        payment_method: document.getElementById('savePaymentMethod').value,
+        category: document.getElementById('saveCategory').value,
+        beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
+        image_url: publicUrl,
+      });
+      if (error) throw new Error('DB: ' + error.message);
+
+      document.getElementById('resultCard').classList.remove('visible');
+      document.getElementById('previewArea').classList.remove('visible');
+      document.getElementById('fileInput').value = '';
+      currentResult = null; croppedBase64 = null;
+      await loadBelege();
+    } catch (err) {
+      showError('Fehler: ' + err.message);
+    } finally {
+      btn.classList.remove('loading'); btn.disabled = false;
+    }
+  }
+
+  async function loadBelege() {
+    const { data, error } = await sb.from('belege')
+      .select('id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,abrechnung_id,created_at')
+      .order('created_at', { ascending: false });
+    if (!error) { belege = data || []; renderBelegeList(); }
+  }
+
+  function renderBelegeList() {
+    const el = document.getElementById('receiptsList');
+    document.getElementById('receiptsCount').textContent = belege.length + ' Beleg' + (belege.length !== 1 ? 'e' : '');
+    if (belege.length === 0) {
+      el.innerHTML = '<div class="receipts-empty">Noch keine Belege erfasst</div>';
+      document.getElementById('summaryBar').classList.add('hidden');
+      return;
+    }
+    el.innerHTML = belege.map(b => `
+      <div class="receipt-row">
+        <img class="receipt-thumb" src="${esc(b.image_url||'')}"
+             onclick="openDetail('${b.id}')" onerror="this.style.opacity='0.15'" />
+        <div class="receipt-info">
+          <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
+          <div class="date-loc">
+            ${esc(b.date||'—')}
+            <span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'')}</span>
+            <span class="cat-badge">${esc(b.category||'')}</span>
+          </div>
+          ${b.beschreibung ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(b.beschreibung)}</div>` : ''}
+        </div>
+        <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
+        <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
+        <button class="btn-remove" onclick="confirmDelete('${b.id}')">✕</button>
+      </div>`).join('');
+    document.getElementById('summaryBar').classList.remove('hidden');
+    const total = belege.reduce((s,b) => s + (Number(b.amount)||0), 0);
+    document.getElementById('summaryTotal').textContent = total.toFixed(2);
+  }
+
+  async function confirmDelete(id) {
+    if (!confirm('Beleg löschen?')) return;
+    const { error } = await sb.from('belege').delete().eq('id', id);
+    if (!error) await loadBelege();
+    else showError('Fehler: ' + error.message);
+  }
+
+  function openDetail(id) {
+    detailBeleg = belege.find(b => b.id === id);
+    if (!detailBeleg) return;
+    document.getElementById('detailMerchant').textContent = detailBeleg.merchant || 'Unbekannt';
+    document.getElementById('detailDate').textContent = detailBeleg.date || '—';
+    document.getElementById('detailAmount').textContent = (detailBeleg.amount != null ? Number(detailBeleg.amount).toFixed(2) : '—') + ' ' + (detailBeleg.currency || '');
+    document.getElementById('detailImage').src = detailBeleg.image_url || '';
+    document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
+    document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
+    document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
+    document.getElementById('detailModal').classList.add('active');
+  }
+
+  function closeDetail() {
+    document.getElementById('detailModal').classList.remove('active');
+    detailBeleg = null;
+  }
+
+  document.getElementById('detailModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('detailModal')) closeDetail();
+  });
+
+  async function saveDetailChanges() {
+    if (!detailBeleg) return;
+    const { error } = await sb.from('belege').update({
+      payment_method: document.getElementById('detailPaymentMethod').value,
+      category: document.getElementById('detailCategory').value,
+      beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
+    }).eq('id', detailBeleg.id);
+    if (error) { alert('Fehler: ' + error.message); return; }
+    closeDetail();
+    await loadBelege();
+  }
+
+  async function deleteCurrentBeleg() {
+    if (!detailBeleg || !confirm('Beleg löschen?')) return;
+    const { error } = await sb.from('belege').delete().eq('id', detailBeleg.id);
+    if (error) { alert('Fehler: ' + error.message); return; }
+    closeDetail();
+    await loadBelege();
+  }
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
+  function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
+
+  init();
+</script>
+</body>
+</html>
