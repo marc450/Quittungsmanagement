@@ -459,8 +459,11 @@
 
     <div class="receipts-section">
       <div class="receipts-header">
-        <div class="receipts-title">Belege</div>
-        <div class="receipts-count" id="receiptsCount">0 Belege</div>
+        <div class="receipts-title" id="receiptsTitle">Belege</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button id="deleteFolderBtn" onclick="deleteCurrentFolder()" style="display:none;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:none;border:1px solid #f0c0b8;border-radius:3px;padding:4px 10px;cursor:pointer">Mappe löschen</button>
+          <div class="receipts-count" id="receiptsCount">0 Belege</div>
+        </div>
       </div>
       <div class="folders-bar" id="foldersBar"></div>
       <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
@@ -881,7 +884,6 @@ Rules:
                    ondrop="dropOnFolder(event,'${f.id}')">
         📁 <span>${esc(f.name)}</span>
         <span class="folder-chip-count">${count}</span>
-        <button class="folder-chip-delete" onclick="event.stopPropagation();deleteFolder('${f.id}')">✕</button>
       </div>`;
     }).join('');
     const allActive = currentFolderId === null ? 'active' : '';
@@ -895,6 +897,13 @@ Rules:
       </div>
       ${chips}
       <button class="btn-new-folder" onclick="promptCreateFolder()">+ Neue Mappe</button>`;
+
+    // Update header title and delete button visibility
+    const activeFolder = folders.find(f => f.id === currentFolderId);
+    const titleEl = document.getElementById('receiptsTitle');
+    const deleteBtn = document.getElementById('deleteFolderBtn');
+    if (titleEl) titleEl.textContent = activeFolder ? activeFolder.name : 'Belege';
+    if (deleteBtn) deleteBtn.style.display = activeFolder ? 'inline-block' : 'none';
   }
 
   function filterByFolder(id) {
@@ -910,6 +919,10 @@ Rules:
     if (error) { showError('Fehler: ' + error.message); return; }
     folders.push(data);
     renderFolders();
+  }
+
+  async function deleteCurrentFolder() {
+    if (currentFolderId) await deleteFolder(currentFolderId);
   }
 
   async function deleteFolder(id) {
