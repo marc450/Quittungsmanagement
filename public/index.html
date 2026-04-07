@@ -181,11 +181,38 @@
   .btn-crop-confirm { flex: 2; padding: 13px; background: var(--accent); border: none; color: #fff; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
 
   @media (max-width: 600px) {
-    .result-grid { grid-template-columns: 1fr; } .result-cell { border-right: none; }
-    .receipt-row { grid-template-columns: 40px 1fr auto; } .receipt-status, .btn-remove { display: none; }
-    header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .wrap { padding: 20px 16px; }
+    header { flex-direction: row; align-items: center; margin-bottom: 28px; padding-bottom: 16px; }
+    .header-user { display: none; }
+    .logo { font-size: 22px; }
+
+    .drop-zone { padding: 32px 20px; }
+
+    .preview-area.visible { flex-direction: column; }
+    .preview-img { width: 100%; min-width: unset; max-height: 240px; }
+    .btn-analyze { width: 100%; justify-content: center; }
+
+    .result-grid { grid-template-columns: 1fr; }
+    .result-cell { border-right: none; }
+    .result-cell:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+    .result-cell:last-child { border-bottom: none; }
     .save-form-grid { grid-template-columns: 1fr; }
+
+    .receipts-section { margin-top: 32px; padding-top: 24px; }
+    .receipt-row { grid-template-columns: 56px 1fr auto; gap: 12px; padding: 10px 12px; }
+    .receipt-status { display: none; }
+    .btn-remove { display: flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; font-size: 18px; }
+    .receipt-total { font-size: 15px; }
+    .receipt-thumb { width: 56px; height: 56px; }
+
+    .login-card { padding: 28px 20px; }
+    .login-field input { font-size: 16px; }
+
+    .modal-overlay { padding: 0; align-items: flex-end; }
+    .modal-card { border-radius: 16px 16px 0 0; max-height: 95vh; }
     .modal-info-grid { grid-template-columns: 1fr; }
+
+    .folder-chip, .btn-new-folder { padding: 8px 16px; font-size: 12px; min-height: 36px; }
   }
 </style>
 </head>
@@ -265,6 +292,12 @@
           <option value="Barauslage">Barauslage</option>
           <option value="Essen Privat">Essen Privat</option>
           <option value="Essen Firma">Essen Firma</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="cell-label" style="margin-bottom:6px">Mappe</div>
+        <select id="detailFolder" class="field-select">
+          <option value="">— Keine Mappe —</option>
         </select>
       </div>
       <div class="modal-field">
@@ -836,6 +869,9 @@ Rules:
     document.getElementById('detailAmount').value = detailBeleg.amount != null ? Number(detailBeleg.amount).toFixed(2) : '';
     document.getElementById('detailCurrency').value = detailBeleg.currency || 'CHF';
     document.getElementById('detailImage').src = detailBeleg.image_url || '';
+    const folderSel = document.getElementById('detailFolder');
+    folderSel.innerHTML = '<option value="">— Keine Mappe —</option>' +
+      folders.map(f => `<option value="${f.id}" ${detailBeleg.folder_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
     document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
     document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
@@ -862,6 +898,7 @@ Rules:
       payment_method: document.getElementById('detailPaymentMethod').value,
       category: document.getElementById('detailCategory').value,
       beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
+      folder_id: document.getElementById('detailFolder').value || null,
     }).eq('id', detailBeleg.id);
     if (error) { alert('Fehler: ' + error.message); return; }
     closeDetail();
