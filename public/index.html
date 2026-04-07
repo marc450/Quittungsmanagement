@@ -412,12 +412,15 @@
     const errEl = document.getElementById('loginError');
     btn.disabled = true; btn.textContent = '…';
     errEl.classList.remove('visible');
-    const { error } = await sb.auth.signInWithPassword({
-      email: document.getElementById('loginEmail').value,
-      password: document.getElementById('loginPassword').value,
-    });
-    if (error) {
-      errEl.textContent = error.message; errEl.classList.add('visible');
+    try {
+      if (!sb) throw new Error('App noch nicht bereit, bitte kurz warten.');
+      const { error } = await sb.auth.signInWithPassword({
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value,
+      });
+      if (error) throw error;
+    } catch (err) {
+      errEl.textContent = err.message; errEl.classList.add('visible');
       btn.disabled = false; btn.textContent = 'Anmelden';
     }
   });
