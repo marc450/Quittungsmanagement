@@ -373,7 +373,7 @@
       sb.auth.onAuthStateChange(async (event, session) => {
         if (session) {
           currentUser = session.user;
-          await loadProfile();
+          try { await loadProfile(); } catch (e) { console.error('loadProfile:', e); }
           showApp();
           loadBelege();
         } else {
