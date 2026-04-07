@@ -41,6 +41,100 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+// Admin: verify requester is admin, returns requester's user id or null
+async function verifyAdmin(authHeader) {
+  if (!authHeader) return null;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  const userRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { 'Authorization': authHeader, 'apikey': process.env.SUPABASE_ANON_KEY },
+  });
+  if (!userRes.ok) return null;
+  const user = await userRes.json();
+  const profileRes = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=role`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const profiles = await profileRes.json();
+  if (!profiles[0] || profiles[0].role !== 'admin') return null;
+  return user.id;
+}
+
+// GET /api/admin/users
+app.get('/api/admin/users', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/profiles?select=id,name,email,role,created_at&order=created_at.asc`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const data = await r.json();
+  res.status(r.status).json(data);
+});
+
+// GET /api/admin/belege?userId=xxx
+app.get('/api/admin/belege', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/belege?user_id=eq.${userId}&select=id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,folder_id,created_at&order=created_at.desc`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const data = await r.json();
+  res.status(r.status).json(data);
+});
+
+// GET /api/admin/folders?userId=xxx
+app.get('/api/admin/folders', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/folders?user_id=eq.${userId}&select=id,name&order=created_at.asc`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const data = await r.json();
+  res.status(r.status).json(data);
+});
+
+// POST /api/admin/create-user
+app.post('/api/admin/create-user', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { email, password, name, role } = req.body;
+  if (!email || !password || !name) return res.status(400).json({ error: 'Missing fields' });
+  const createRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`,
+      'apikey': serviceKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
+  });
+  const createData = await createRes.json();
+  if (!createRes.ok) return res.status(createRes.status).json({ error: createData.message || JSON.stringify(createData) });
+  const newUserId = createData.id;
+  await fetch(`${process.env.SUPABASE_URL}/rest/v1/profiles`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`,
+      'apikey': serviceKey,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ id: newUserId, name, email, role: role || 'user' }),
+  });
+  res.json({ success: true, userId: newUserId });
+});
+
 // POST /api/upload-image
 app.post('/api/upload-image', async (req, res) => {
   const authHeader = req.headers.authorization;
