@@ -284,6 +284,8 @@
     .fab { display: flex; align-items: center; justify-content: center; }
     .upload-section { display: none; }
     .upload-section.mobile-visible { display: block; }
+    .mobile-upload-active .receipts-section { display: none; }
+    .mobile-upload-active .fab { display: none !important; }
     .receipts-section { border-top: none; margin-top: 0; padding-top: 0; }
     .receipts-header { display: none !important; }
     header { margin-bottom: 12px; padding-bottom: 10px; }
@@ -751,6 +753,7 @@
         <button class="btn-analyze" id="saveBelegBtn" onclick="saveBeleg()" style="background:var(--success)">
           <span class="spinner"></span><span class="btn-label">✓ Speichern</span>
         </button>
+        <button class="btn-analyze" onclick="discardUpload()" style="background:transparent;color:var(--accent);border:1px solid #f0c0b8;margin-top:8px">Verwerfen</button>
       </div>
     </div>
 
@@ -796,8 +799,8 @@
       </div>
       <div class="folders-bar" id="foldersBar"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-        <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:100px;padding:7px 10px;font-size:12px" />
-        <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:7px 10px;font-size:12px;height:38px">
+        <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:100px;padding:0 10px;font-size:12px;height:36px" />
+        <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:0 10px;font-size:12px;height:36px">
           <option value="date_desc">Datum ↓</option>
           <option value="date_asc">Datum ↑</option>
           <option value="amount_desc">Betrag ↓</option>
@@ -1196,7 +1199,7 @@ Rules:
       document.getElementById('resultCard').classList.remove('visible');
       document.getElementById('previewArea').classList.remove('visible');
       document.getElementById('fileInput').value = '';
-      document.querySelector('.upload-section')?.classList.remove('mobile-visible');
+      hideUploadSection();
       currentResult = null; croppedBase64 = null;
       await loadBelege();
     } catch (err) {
@@ -1447,7 +1450,7 @@ Rules:
         <div class="receipt-info">
           <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
           <div class="date-loc">
-            ${esc(b.date||'—')}
+            ${esc(formatDateStr(b.date))}
             <span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'')}</span>
             <span class="cat-badge">${esc(b.category||'')}</span>
           </div>
@@ -1583,8 +1586,22 @@ Rules:
     const section = document.querySelector('.upload-section');
     if (section) {
       section.classList.add('mobile-visible');
+      document.getElementById('mainContent')?.classList.add('mobile-upload-active');
       section.scrollIntoView({ behavior: 'smooth' });
     }
+  }
+
+  function hideUploadSection() {
+    document.querySelector('.upload-section')?.classList.remove('mobile-visible');
+    document.getElementById('mainContent')?.classList.remove('mobile-upload-active');
+  }
+
+  function discardUpload() {
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('previewArea').classList.remove('visible');
+    document.getElementById('fileInput').value = '';
+    currentResult = null; croppedBase64 = null;
+    hideUploadSection();
   }
 
   document.getElementById('fabFileInput').addEventListener('change', e => {
@@ -1609,6 +1626,13 @@ Rules:
     if (usd > 0) { usdBox.style.display = ''; document.getElementById('kpiTotalUSD').textContent = usd.toFixed(2); } else { usdBox.style.display = 'none'; }
   }
 
+  function formatDateStr(s) {
+    if (!s) return '—';
+    // YYYY-MM-DD → DD.MM.YYYY
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+    return s;
+  }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
   function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
@@ -1881,7 +1905,7 @@ Rules:
       <tbody>${filtered.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
-        <td style="color:var(--muted)">${esc(b.date||'—')}</td>
+        <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
         <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
         <td><span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'—')}</span></td>
         <td><span class="cat-badge">${esc(b.category||'—')}</span></td>
@@ -2038,7 +2062,7 @@ Rules:
             <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
             <div>
               <div class="recon-merchant">${esc(b.merchant||'—')}</div>
-              <div class="recon-match-info">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
+              <div class="recon-match-info">${esc(formatDateStr(b.date))}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
             </div>
           ` : reconAssigningIdx === idx ? `
             <div style="font-size:11px;color:#1a56db;font-weight:500">← Quittung oben auswählen</div>
@@ -2103,7 +2127,7 @@ Rules:
       <tbody>${available.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
         <td>${esc(b.merchant||'—')}</td>
-        <td style="color:var(--muted)">${esc(b.date||'—')}</td>
+        <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
         <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
         <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
         <td><button onclick="confirmAssign('${b.id}')" class="btn-assign-beleg">Zuordnen</button></td>
