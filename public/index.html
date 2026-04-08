@@ -672,6 +672,17 @@
         </div>
       </div>
       <div class="folders-bar" id="foldersBar"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:140px;padding:7px 10px;font-size:12px" />
+        <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:7px 10px;font-size:11px">
+          <option value="date_desc">Datum ↓</option>
+          <option value="date_asc">Datum ↑</option>
+          <option value="amount_desc">Betrag ↓</option>
+          <option value="amount_asc">Betrag ↑</option>
+          <option value="merchant_asc">Händler A–Z</option>
+          <option value="merchant_desc">Händler Z–A</option>
+        </select>
+      </div>
       <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
       <div class="summary-bar hidden" id="summaryBar">
         <div>
@@ -1199,7 +1210,36 @@ Rules:
 
   function renderBelegeList() {
     const el = document.getElementById('receiptsList');
-    const filtered = currentFolderId === null ? belege : belege.filter(b => b.folder_id === currentFolderId);
+    let filtered = currentFolderId === null ? belege : belege.filter(b => b.folder_id === currentFolderId);
+
+    // Text filter
+    const q = (document.getElementById('belegeFilter')?.value || '').toLowerCase().trim();
+    if (q) {
+      filtered = filtered.filter(b =>
+        (b.merchant || '').toLowerCase().includes(q) ||
+        (b.date || '').toLowerCase().includes(q) ||
+        (b.category || '').toLowerCase().includes(q) ||
+        (b.beschreibung || '').toLowerCase().includes(q) ||
+        (b.payment_method || '').toLowerCase().includes(q) ||
+        (b.address || '').toLowerCase().includes(q) ||
+        String(b.amount || '').includes(q)
+      );
+    }
+
+    // Sort
+    const sort = document.getElementById('belegeSort')?.value || 'date_desc';
+    const [field, dir] = sort.split('_');
+    const asc = dir === 'asc' ? 1 : -1;
+    filtered = [...filtered].sort((a, b) => {
+      if (field === 'date') {
+        const da = a.created_at || a.date || ''; const db = b.created_at || b.date || '';
+        return da < db ? -asc : da > db ? asc : 0;
+      }
+      if (field === 'amount') return ((Number(a.amount) || 0) - (Number(b.amount) || 0)) * asc;
+      if (field === 'merchant') return (a.merchant || '').localeCompare(b.merchant || '') * asc;
+      return 0;
+    });
+
     document.getElementById('receiptsCount').textContent = filtered.length + ' Beleg' + (filtered.length !== 1 ? 'e' : '');
     if (filtered.length === 0) {
       el.innerHTML = '<div class="receipts-empty">Keine Belege in dieser Mappe</div>';
