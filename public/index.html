@@ -542,6 +542,11 @@
 
     <!-- Administration panel -->
     <div id="adminPanel" style="display:none">
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:28px">
+        <button class="tab-btn active" id="adminSubBelege" onclick="switchAdminSub('belege')" style="font-size:10px;padding:8px 16px">Belege &amp; Mappen</button>
+        <button class="tab-btn" id="adminSubRecon" onclick="switchAdminSub('recon')" style="font-size:10px;padding:8px 16px">KK-Abrechnung</button>
+      </div>
+      <div id="adminSubBelegePanel">
       <div class="admin-section">
         <div class="admin-section-title">Belege &amp; Mappen nach Benutzer:in</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
@@ -568,6 +573,8 @@
         </div>
       </div>
 
+      </div><!-- /adminSubBelegePanel -->
+      <div id="adminSubReconPanel" style="display:none">
       <div class="admin-section">
         <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
@@ -603,6 +610,7 @@
         </div>
         <div id="reconResults"></div>
       </div>
+      </div><!-- /adminSubReconPanel -->
     </div>
 
     <!-- Main content (upload + receipts) -->
@@ -1416,6 +1424,13 @@ Rules:
     if (currentProfile?.role === 'admin') {
       document.getElementById('tabBar').style.display = 'flex';
     }
+  }
+
+  function switchAdminSub(sub) {
+    document.getElementById('adminSubBelege').classList.toggle('active', sub === 'belege');
+    document.getElementById('adminSubRecon').classList.toggle('active', sub === 'recon');
+    document.getElementById('adminSubBelegePanel').style.display = sub === 'belege' ? 'block' : 'none';
+    document.getElementById('adminSubReconPanel').style.display = sub === 'recon' ? 'block' : 'none';
   }
 
   function switchTab(tab) {
