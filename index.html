@@ -272,12 +272,12 @@
 
     .receipts-section { margin-top: 24px; padding-top: 20px; }
     .receipts-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .receipt-row { grid-template-columns: 48px 1fr auto; gap: 10px; padding: 10px; }
+    .receipt-row { grid-template-columns: 1fr auto auto; gap: 8px; padding: 12px; cursor: pointer; }
+    .receipt-thumb { display: none; }
     .receipt-status { display: none; }
-    .btn-remove { display: flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; font-size: 18px; }
-    .receipt-total { font-size: 14px; }
-    .receipt-thumb { width: 48px; height: 48px; }
-    .receipt-info .merchant { font-size: 12px; }
+    .btn-remove { display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; font-size: 16px; }
+    .receipt-total { font-size: 14px; font-weight: 500; }
+    .receipt-info .merchant { font-size: 13px; }
     .receipt-info .date-loc { font-size: 10px; }
 
     /* Folder chips: hide on mobile (use dropdown instead) */
@@ -1159,11 +1159,9 @@ Rules:
     // Populate dropdown (used on all screens)
     const dd = document.getElementById('folderDropdown');
     if (dd) {
-      const allCount = belege.length;
-      dd.innerHTML = `<option value="" ${currentFolderId===null?'selected':''}>Alle Belege (${allCount})</option>` +
+      dd.innerHTML = `<option value="" ${currentFolderId===null?'selected':''}>Alle Belege</option>` +
         folders.map(f => {
-          const count = belege.filter(b => b.folder_id === f.id).length;
-          return `<option value="${f.id}" ${currentFolderId===f.id?'selected':''}>📁 ${esc(f.name)} (${count})</option>`;
+          return `<option value="${f.id}" ${currentFolderId===f.id?'selected':''}>📁 ${esc(f.name)}</option>`;
         }).join('');
     }
 
@@ -1301,9 +1299,8 @@ Rules:
       return;
     }
     el.innerHTML = filtered.map(b => `
-      <div class="receipt-row" draggable="true" ondragstart="startDrag(event,'${b.id}')" ondragend="this.classList.remove('dragging')" onmousedown="this.classList.add('dragging')" onmouseup="this.classList.remove('dragging')">
-        <img class="receipt-thumb" src="${esc(b.image_url||'')}"
-             onclick="openDetail('${b.id}')" onerror="this.style.opacity='0.15'" />
+      <div class="receipt-row" draggable="true" ondragstart="startDrag(event,'${b.id}')" ondragend="this.classList.remove('dragging')" onmousedown="this.classList.add('dragging')" onmouseup="this.classList.remove('dragging')" onclick="openDetail('${b.id}')">
+        <img class="receipt-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.15'" />
         <div class="receipt-info">
           <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
           <div class="date-loc">
@@ -1315,7 +1312,7 @@ Rules:
         </div>
         <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
-        <button class="btn-remove" onclick="confirmDelete('${b.id}')">✕</button>
+        <button class="btn-remove" onclick="event.stopPropagation();confirmDelete('${b.id}')">✕</button>
       </div>`).join('');
     document.getElementById('summaryBar').classList.remove('hidden');
     const total = filtered.reduce((s,b) => s + (Number(b.amount)||0), 0);
@@ -1622,10 +1619,9 @@ Rules:
 
     // Populate folder dropdown
     const curFolder = folderSel.value;
-    folderSel.innerHTML = `<option value="">Alle Belege (${adminBelegeData.length})</option>` +
+    folderSel.innerHTML = `<option value="">Alle Belege</option>` +
       adminFoldersData.map(f => {
-        const count = adminBelegeData.filter(b => b.folder_id === f.id).length;
-        return `<option value="${f.id}" ${f.id === curFolder ? 'selected' : ''}>📁 ${esc(f.name)} (${count})</option>`;
+        return `<option value="${f.id}" ${f.id === curFolder ? 'selected' : ''}>📁 ${esc(f.name)}</option>`;
       }).join('');
 
     document.getElementById('adminBelegeFilter').value = '';
