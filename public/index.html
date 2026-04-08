@@ -577,13 +577,13 @@
       <div id="adminSubReconPanel" style="display:none">
       <div class="admin-section">
         <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
+        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:20px">
           <select id="reconUserSelect" class="field-select" style="flex:1;min-width:180px">
             <option value="">— Benutzer:in wählen —</option>
           </select>
-          <div style="position:relative">
+          <div style="position:relative;flex-shrink:0">
             <input type="file" id="statementFileInput" accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" />
-            <button class="btn-analyze" style="font-size:11px;padding:8px 16px;pointer-events:none">PDF hochladen</button>
+            <button class="btn-analyze" style="font-size:11px;padding:0 16px;height:100%;pointer-events:none;margin:0">PDF hochladen</button>
           </div>
         </div>
         <div id="reconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
