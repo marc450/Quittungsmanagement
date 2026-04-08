@@ -1610,14 +1610,15 @@ Rules:
   });
 
   async function saveDetailChanges() {
-    if (!detailBeleg) return;
+    console.log('saveDetailChanges called, detailBeleg:', detailBeleg?.id);
+    if (!detailBeleg) { console.log('no detailBeleg'); return; }
     if (!document.getElementById('detailPaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
     if (!document.getElementById('detailCategory').value) { nativeConfirm('Bitte Kategorie wählen.', 'Pflichtfeld'); return; }
     const btn = document.getElementById('saveDetailBtn');
     btn.classList.add('loading'); btn.disabled = true;
     try {
       const amount = document.getElementById('detailAmount').value;
-      const { error } = await sb.from('belege').update({
+      const payload = {
         merchant: document.getElementById('detailMerchant').value.trim() || null,
         date: document.getElementById('detailDate').value.trim() || null,
         amount: amount !== '' ? parseFloat(amount) : null,
@@ -1629,11 +1630,15 @@ Rules:
         vat_rate: document.getElementById('detailVatRate').value !== '' ? parseFloat(document.getElementById('detailVatRate').value) : null,
         beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
         folder_id: document.getElementById('detailFolder').value || null,
-      }).eq('id', detailBeleg.id);
+      };
+      console.log('saveDetailChanges payload:', JSON.stringify(payload), 'id:', detailBeleg.id);
+      const { error } = await sb.from('belege').update(payload).eq('id', detailBeleg.id);
+      console.log('saveDetailChanges result, error:', error);
       if (error) { showError('Fehler: ' + error.message); return; }
       closeDetail();
       await loadBelege();
     } catch (e) {
+      console.error('saveDetailChanges exception:', e);
       showError('Fehler beim Speichern: ' + e.message);
     } finally {
       btn.classList.remove('loading'); btn.disabled = false;
