@@ -214,6 +214,11 @@
   .recon-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 6px; background: white; font-size: 12px; }
   .recon-row.matched { border-left: 3px solid var(--success); }
   .recon-row.unmatched { border-left: 3px solid var(--accent); background: #fffaf8; }
+  .recon-row.assigning { border-left: 3px solid #1a56db; background: #e8f0fe; animation: pulse-assign 1.5s ease infinite; }
+  @keyframes pulse-assign { 0%,100% { box-shadow: 0 0 0 0 rgba(26,86,219,0.15); } 50% { box-shadow: 0 0 0 6px rgba(26,86,219,0.08); } }
+  .assign-banner { position: sticky; top: 0; z-index: 10; padding: 10px 16px; background: #e8f0fe; border: 1.5px solid #c0d0f0; border-radius: 4px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #1a56db; }
+  .btn-assign-beleg { font-family: var(--mono); font-size: 10px; padding: 4px 10px; background: #1a56db; color: white; border: none; border-radius: 3px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: background 0.15s; }
+  .btn-assign-beleg:hover { background: #1240a0; }
   .recon-arrow { color: var(--muted); font-size: 14px; }
   .recon-left { min-width: 0; }
   .recon-right { min-width: 0; display: flex; align-items: center; gap: 8px; }
@@ -290,20 +295,6 @@
     <div class="dialog-footer">
       <button class="dialog-cancel" id="confirmCancel">Abbrechen</button>
       <button class="dialog-confirm danger" id="confirmOk">Bestätigen</button>
-    </div>
-  </div>
-</div>
-
-<!-- Assign picker dialog -->
-<div class="dialog-overlay" id="assignPickerDialog" onclick="if(event.target===this)closeAssignPicker()">
-  <div class="dialog-box" style="max-width:480px;max-height:70vh;display:flex;flex-direction:column">
-    <div class="dialog-body" style="padding-bottom:8px;flex-shrink:0">
-      <div class="dialog-title">Quittung zuordnen</div>
-      <div class="dialog-msg">Verfügbare Quittungen auswählen</div>
-    </div>
-    <div id="assignPickerList" style="flex:1;overflow-y:auto;border-top:1px solid var(--border)"></div>
-    <div class="dialog-footer">
-      <button class="dialog-cancel" onclick="closeAssignPicker()" style="flex:1">Abbrechen</button>
     </div>
   </div>
 </div>
@@ -1617,7 +1608,8 @@ Rules:
       const b = r.beleg;
       const isMatched = r.status === 'matched';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
-      return `<div class="recon-row ${isMatched ? 'matched' : 'unmatched'}">
+      const rowClass = isMatched ? 'matched' : reconAssigningIdx === idx ? 'assigning' : 'unmatched';
+      return `<div class="recon-row ${rowClass}">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? tx.amount_original.toFixed(2) : '') : ''}</div>
@@ -1633,55 +1625,76 @@ Rules:
               <div class="recon-merchant">${esc(b.merchant||'—')}</div>
               <div class="recon-match-info">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
             </div>
+          ` : reconAssigningIdx === idx ? `
+            <div style="font-size:11px;color:#1a56db;font-weight:500">← Quittung oben auswählen</div>
           ` : `
-            <button onclick="openAssignPicker(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
+            <button onclick="startAssigning(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
           `}
         </div>
       </div>`;
     }).join('');
   }
 
-  function openAssignPicker(rowIdx) {
-    if (!reconState) return;
-    const usedIds = new Set(reconState.results.filter(r => r.beleg).map(r => r.beleg.id));
-    const available = reconState.results[rowIdx].tx;
-    const candidates = reconState.belege.filter(b => !usedIds.has(b.id));
+  let reconAssigningIdx = null; // index into reconState.results being assigned
 
-    if (!candidates.length) { showError('Keine verfügbaren Quittungen zum Zuordnen.'); return; }
+  function startAssigning(rowIdx) {
+    reconAssigningIdx = rowIdx;
+    renderReconResults();
+    renderAdminBelegeWithAssign();
+    // Scroll to belege section
+    document.getElementById('adminBelegeContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
-    const overlay = document.getElementById('assignPickerDialog');
-    const list = document.getElementById('assignPickerList');
-    overlay.dataset.rowIdx = rowIdx;
-
-    list.innerHTML = candidates.map(b => {
-      const folderName = b.folder_id && reconState.folderMap[b.folder_id] ? reconState.folderMap[b.folder_id] : null;
-      return `<div onclick="confirmAssign('${b.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background='white'">
-        <img src="${esc(b.image_url||'')}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--border);flex-shrink:0" onerror="this.style.opacity='0.1'" />
-        <div style="min-width:0;flex:1">
-          <div style="font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.merchant||'Unbekannt')}</div>
-          <div style="font-size:11px;color:var(--muted)">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
-        </div>
-        <div style="font-family:var(--serif);font-size:14px;white-space:nowrap">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
-      </div>`;
-    }).join('');
-
-    overlay.classList.add('active');
+  function cancelAssigning() {
+    reconAssigningIdx = null;
+    renderReconResults();
+    renderAdminBelegeWithAssign();
   }
 
   function confirmAssign(belegId) {
-    const overlay = document.getElementById('assignPickerDialog');
-    const rowIdx = parseInt(overlay.dataset.rowIdx);
-    overlay.classList.remove('active');
-    if (!reconState || !reconState.results[rowIdx]) return;
+    if (reconAssigningIdx == null || !reconState) return;
     const beleg = reconState.belege.find(b => b.id === belegId);
     if (!beleg) return;
-    reconState.results[rowIdx].beleg = beleg;
-    reconState.results[rowIdx].status = 'matched';
+    reconState.results[reconAssigningIdx].beleg = beleg;
+    reconState.results[reconAssigningIdx].status = 'matched';
+    reconAssigningIdx = null;
     renderReconResults();
+    renderAdminBelegeWithAssign();
   }
 
-  function closeAssignPicker() {
-    document.getElementById('assignPickerDialog').classList.remove('active');
+  function renderAdminBelegeWithAssign() {
+    const container = document.getElementById('adminBelegeContainer');
+    if (!reconState || reconAssigningIdx == null) {
+      // Re-render normal belege table (trigger normal load)
+      if (document.getElementById('adminUserSelect').value) loadAdminBelege();
+      return;
+    }
+    const tx = reconState.results[reconAssigningIdx]?.tx;
+    const usedIds = new Set(reconState.results.filter(r => r.beleg).map(r => r.beleg.id));
+    const { belege, folderMap } = reconState;
+    const available = belege.filter(b => !usedIds.has(b.id));
+
+    const bannerHtml = `<div class="assign-banner">
+      <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF · ${esc(tx?.date || '—')}</span>
+      <button onclick="cancelAssigning()" class="btn-logout" style="font-size:10px;padding:3px 10px">Abbrechen</button>
+    </div>`;
+
+    if (!available.length) {
+      container.innerHTML = bannerHtml + '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine verfügbaren Quittungen</div>';
+      return;
+    }
+
+    container.innerHTML = bannerHtml + `<table class="admin-belege-table">
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Mappe</th><th></th></tr></thead>
+      <tbody>${available.map(b => `<tr>
+        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
+        <td>${esc(b.merchant||'—')}</td>
+        <td style="color:var(--muted)">${esc(b.date||'—')}</td>
+        <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
+        <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
+        <td><button onclick="confirmAssign('${b.id}')" class="btn-assign-beleg">Zuordnen</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
   }
 
   async function runReconciliation(file, userId) {
