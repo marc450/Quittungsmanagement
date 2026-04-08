@@ -141,6 +141,57 @@ app.post('/api/admin/create-user', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/delete-user
+app.delete('/api/admin/delete-user', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  if (userId === adminId) return res.status(400).json({ error: 'Eigenen Account kann man nicht löschen' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  try {
+    // Delete profile first (FK constraint)
+    await fetch(`${process.env.SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey },
+    });
+    // Delete auth user
+    const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey },
+    });
+    if (!r.ok) { const d = await r.json(); return res.status(r.status).json({ error: d.msg || d.message || JSON.stringify(d) }); }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/change-password
+app.post('/api/admin/change-password', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId, password } = req.body;
+  if (!userId || !password) return res.status(400).json({ error: 'Missing fields' });
+  if (password.length < 8) return res.status(400).json({ error: 'Mindestens 8 Zeichen' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  try {
+    const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password }),
+    });
+    if (!r.ok) { const d = await r.json(); return res.status(r.status).json({ error: d.msg || d.message || JSON.stringify(d) }); }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/upload-image
 app.post('/api/upload-image', async (req, res) => {
   const authHeader = req.headers.authorization;

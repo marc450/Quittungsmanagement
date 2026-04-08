@@ -282,6 +282,22 @@
   </div>
 </div>
 
+<!-- Admin change password dialog -->
+<div class="dialog-overlay" id="adminPwDialog">
+  <div class="dialog-box" style="max-width:380px">
+    <div class="dialog-body">
+      <div class="dialog-title" id="adminPwTitle">Passwort ändern</div>
+      <input class="dialog-input" id="adminPwInput" type="password" placeholder="Neues Passwort" style="margin-top:12px" />
+      <input class="dialog-input" id="adminPwConfirm" type="password" placeholder="Passwort bestätigen" style="margin-top:8px" />
+      <div id="adminPwError" style="display:none;margin-top:8px;font-size:12px;color:var(--accent)"></div>
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" id="adminPwCancel">Abbrechen</button>
+      <button class="dialog-confirm" id="adminPwOk">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- Change password dialog -->
 <div class="dialog-overlay" id="changePasswordDialog">
   <div class="dialog-box" style="max-width:380px">
@@ -448,8 +464,8 @@
       <div class="admin-section">
         <div class="admin-section-title">Benutzerverwaltung</div>
         <table class="admin-table" id="adminUsersTable">
-          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Erstellt</th></tr></thead>
-          <tbody id="adminUsersTbody"><tr><td colspan="4" class="admin-empty">Laden…</td></tr></tbody>
+          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Erstellt</th><th></th></tr></thead>
+          <tbody id="adminUsersTbody"><tr><td colspan="5" class="admin-empty">Laden…</td></tr></tbody>
         </table>
         <div style="margin-top:16px">
           <button onclick="toggleCreateUserForm()" class="btn-analyze" style="font-size:11px;padding:8px 16px">+ Benutzer:in erstellen</button>
@@ -1275,13 +1291,18 @@ Rules:
 
   function renderAdminUsers() {
     const tbody = document.getElementById('adminUsersTbody');
-    if (!adminUsers.length) { tbody.innerHTML = '<tr><td colspan="4" class="admin-empty">Keine Benutzer:innen</td></tr>'; return; }
+    if (!adminUsers.length) { tbody.innerHTML = '<tr><td colspan="5" class="admin-empty">Keine Benutzer:innen</td></tr>'; return; }
+    const isSelf = id => id === currentUser?.id;
     tbody.innerHTML = adminUsers.map(u => `
       <tr>
         <td>${esc(u.full_name || '—')}</td>
         <td>${esc(u.email || '—')}</td>
         <td><span class="role-badge role-${u.role === 'admin' ? 'admin' : 'user'}">${u.role === 'admin' ? 'Admin' : 'Benutzer:in'}</span></td>
         <td style="color:var(--muted)">${u.created_at ? new Date(u.created_at).toLocaleDateString('de-CH') : '—'}</td>
+        <td style="white-space:nowrap;text-align:right">
+          <button onclick="adminChangePassword('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout" style="font-size:10px;padding:3px 8px">Passwort</button>
+          ${isSelf(u.id) ? '' : `<button onclick="adminDeleteUser('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout" style="font-size:10px;padding:3px 8px;color:var(--accent);border-color:#f0c0b8">Löschen</button>`}
+        </td>
       </tr>`).join('');
   }
 
@@ -1320,6 +1341,58 @@ Rules:
     toggleCreateUserForm();
     await loadAdminUsers();
   }
+
+  async function adminDeleteUser(userId, name) {
+    if (!await nativeConfirm(`"${name}" unwiderruflich löschen? Alle Belege und Mappen werden entfernt.`, 'Benutzer:in löschen')) return;
+    const auth = await getAdminAuthHeader();
+    const res = await fetch('/api/admin/delete-user', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showError(data.error || 'Fehler beim Löschen.'); return; }
+    await loadAdminUsers();
+  }
+
+  async function adminChangePassword(userId, name) {
+    document.getElementById('adminPwTitle').textContent = 'Passwort ändern: ' + name;
+    document.getElementById('adminPwInput').value = '';
+    document.getElementById('adminPwConfirm').value = '';
+    document.getElementById('adminPwError').style.display = 'none';
+    document.getElementById('adminPwDialog').classList.add('active');
+    document.getElementById('adminPwInput').focus();
+    document.getElementById('adminPwDialog').dataset.userId = userId;
+  }
+
+  (function() {
+    const overlay = document.getElementById('adminPwDialog');
+    const ok = document.getElementById('adminPwOk');
+    const cancel = document.getElementById('adminPwCancel');
+    const errEl = document.getElementById('adminPwError');
+
+    async function doChange() {
+      const pw = document.getElementById('adminPwInput').value;
+      const pw2 = document.getElementById('adminPwConfirm').value;
+      errEl.style.display = 'none';
+      if (pw.length < 8) { errEl.textContent = 'Mindestens 8 Zeichen.'; errEl.style.display = 'block'; return; }
+      if (pw !== pw2) { errEl.textContent = 'Passwörter stimmen nicht überein.'; errEl.style.display = 'block'; return; }
+      ok.disabled = true; ok.textContent = '…';
+      const auth = await getAdminAuthHeader();
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+        body: JSON.stringify({ userId: overlay.dataset.userId, password: pw }),
+      });
+      ok.disabled = false; ok.textContent = 'Speichern';
+      if (!res.ok) { const d = await res.json(); errEl.textContent = d.error || 'Fehler'; errEl.style.display = 'block'; return; }
+      overlay.classList.remove('active');
+    }
+
+    ok.addEventListener('click', doChange);
+    cancel.addEventListener('click', () => overlay.classList.remove('active'));
+    document.getElementById('adminPwConfirm').addEventListener('keydown', e => { if (e.key === 'Enter') doChange(); });
+  })();
 
   async function loadAdminBelege() {
     const userId = document.getElementById('adminUserSelect').value;
