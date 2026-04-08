@@ -1278,7 +1278,7 @@ Rules:
     if (!adminUsers.length) { tbody.innerHTML = '<tr><td colspan="4" class="admin-empty">Keine Benutzer:innen</td></tr>'; return; }
     tbody.innerHTML = adminUsers.map(u => `
       <tr>
-        <td>${esc(u.name || '—')}</td>
+        <td>${esc(u.full_name || '—')}</td>
         <td>${esc(u.email || '—')}</td>
         <td><span class="role-badge role-${u.role === 'admin' ? 'admin' : 'user'}">${u.role === 'admin' ? 'Admin' : 'Benutzer:in'}</span></td>
         <td style="color:var(--muted)">${u.created_at ? new Date(u.created_at).toLocaleDateString('de-CH') : '—'}</td>
@@ -1289,7 +1289,7 @@ Rules:
     const sel = document.getElementById('adminUserSelect');
     const cur = sel.value;
     sel.innerHTML = '<option value="">— Benutzer:in wählen —</option>' +
-      adminUsers.map(u => `<option value="${u.id}" ${u.id === cur ? 'selected' : ''}>${esc(u.name || u.email)}</option>`).join('');
+      adminUsers.map(u => `<option value="${u.id}" ${u.id === cur ? 'selected' : ''}>${esc(u.full_name || u.email)}</option>`).join('');
   }
 
   function toggleCreateUserForm() {

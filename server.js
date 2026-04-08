@@ -66,7 +66,7 @@ app.get('/api/admin/users', async (req, res) => {
   if (!adminId) return res.status(403).json({ error: 'Forbidden' });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const r = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/profiles?select=id,name,email,role,created_at&order=created_at.asc`,
+    `${process.env.SUPABASE_URL}/rest/v1/profiles?select=id,full_name,email,role,created_at&order=created_at.asc`,
     { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
   );
   const data = await r.json();
@@ -132,7 +132,7 @@ app.post('/api/admin/create-user', async (req, res) => {
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
-      body: JSON.stringify({ id: newUserId, name, email, role: role || 'user' }),
+      body: JSON.stringify({ id: newUserId, full_name: name, email, role: role || 'user' }),
     });
     res.json({ success: true, userId: newUserId });
   } catch (err) {
