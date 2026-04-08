@@ -16,6 +16,7 @@
     --success: #2d7d46; --mono: 'DM Mono', monospace; --serif: 'DM Serif Display', serif;
   }
   body { background: var(--paper); color: var(--ink); font-family: var(--mono); font-weight: 300; min-height: 100vh; font-size: 13px; line-height: 1.6; }
+  img { image-orientation: from-image; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
 
   /* Login */
@@ -293,8 +294,16 @@
     .fab { display: flex; align-items: center; justify-content: center; }
     .upload-section { display: none; }
     .upload-section.mobile-visible { display: block; }
+    .upload-section .drop-zone { display: none; }
+    .upload-section .section-label { display: none; }
     .mobile-upload-active .receipts-section { display: none; }
     .mobile-upload-active .fab { display: none !important; }
+    .mobile-upload-active .fab-menu { display: none !important; }
+    .mobile-upload-active .kpi-bar { display: none; }
+    .mobile-upload-active .custom-dropdown { display: none; }
+    .mobile-upload-active .btn-new-folder { display: none; }
+    .mobile-upload-active #belegeFilter { display: none; }
+    .mobile-upload-active #belegeSort { display: none; }
     .receipts-section { border-top: none; margin-top: 0; padding-top: 0; }
     .receipts-header { display: none !important; }
     header { margin-bottom: 12px; padding-bottom: 10px; }
@@ -1009,24 +1018,43 @@
     const stage = document.getElementById('cropStage');
     const canvas = document.getElementById('cropCanvas');
     cropImg = new Image();
-    cropImg.onload = () => {
+    cropImg.onload = async () => {
+      // Use createImageBitmap to auto-correct EXIF rotation
+      try {
+        const bmp = await createImageBitmap(cropImg);
+        cropImgW = bmp.width; cropImgH = bmp.height;
+        // Redraw corrected image to a temp canvas
+        const tmp = document.createElement('canvas'); tmp.width = cropImgW; tmp.height = cropImgH;
+        tmp.getContext('2d').drawImage(bmp, 0, 0);
+        bmp.close();
+        cropImg = new Image();
+        cropImg.onload = () => initCropStage();
+        cropImg.src = tmp.toDataURL('image/jpeg', 0.95);
+        return;
+      } catch(e) { /* fallback: use original */ }
       cropImgW = cropImg.naturalWidth; cropImgH = cropImg.naturalHeight;
-      stageW = stage.offsetWidth; stageH = stage.offsetHeight;
-      canvas.width = stageW; canvas.height = stageH;
-      const scale = Math.min(stageW / cropImgW, stageH / cropImgH);
-      imgRenderW = cropImgW * scale; imgRenderH = cropImgH * scale;
-      imgOffX = (stageW - imgRenderW) / 2; imgOffY = (stageH - imgRenderH) / 2;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, stageW, stageH);
-      ctx.drawImage(cropImg, imgOffX, imgOffY, imgRenderW, imgRenderH);
-      const pad = Math.min(imgRenderW, imgRenderH) * 0.05;
-      crop = {x: imgOffX+pad, y: imgOffY+pad, w: imgRenderW-pad*2, h: imgRenderH-pad*2};
-      updateCropBox();
+      initCropStage();
     };
     cropImg.src = document.getElementById('previewImg').src;
     stage.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+  }
+
+  function initCropStage() {
+    const stage = document.getElementById('cropStage');
+    const canvas = document.getElementById('cropCanvas');
+    stageW = stage.offsetWidth; stageH = stage.offsetHeight;
+    canvas.width = stageW; canvas.height = stageH;
+    const scale = Math.min(stageW / cropImgW, stageH / cropImgH);
+    imgRenderW = cropImgW * scale; imgRenderH = cropImgH * scale;
+    imgOffX = (stageW - imgRenderW) / 2; imgOffY = (stageH - imgRenderH) / 2;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, stageW, stageH);
+    ctx.drawImage(cropImg, imgOffX, imgOffY, imgRenderW, imgRenderH);
+    const pad = Math.min(imgRenderW, imgRenderH) * 0.05;
+    crop = {x: imgOffX+pad, y: imgOffY+pad, w: imgRenderW-pad*2, h: imgRenderH-pad*2};
+    updateCropBox();
   }
 
   function closeCropper() {
