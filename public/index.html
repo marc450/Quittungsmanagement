@@ -544,14 +544,24 @@
     <div id="adminPanel" style="display:none">
       <div class="admin-section">
         <div class="admin-section-title">Belege &amp; Mappen nach Benutzer:in</div>
-        <div class="admin-user-selector">
-          <select id="adminUserSelect" onchange="loadAdminBelege()">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <select id="adminUserSelect" onchange="loadAdminBelege()" class="field-select" style="flex:1;min-width:180px">
             <option value="">— Benutzer:in wählen —</option>
           </select>
+          <select id="adminFolderSelect" onchange="renderAdminBelegeTable()" class="field-select" style="flex:1;min-width:180px">
+            <option value="">Alle Belege</option>
+          </select>
         </div>
-        <div id="adminFoldersList" style="display:none;margin-bottom:16px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px">Mappen</div>
-          <div id="adminFoldersChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px" id="adminBelegeControls" style="display:none">
+          <input type="text" id="adminBelegeFilter" class="field-input" placeholder="Suchen…" oninput="renderAdminBelegeTable()" style="flex:1;min-width:140px;padding:7px 10px;font-size:12px" />
+          <select id="adminBelegeSort" class="field-select" onchange="renderAdminBelegeTable()" style="width:auto;padding:7px 10px;font-size:11px">
+            <option value="date_desc">Datum ↓</option>
+            <option value="date_asc">Datum ↑</option>
+            <option value="amount_desc">Betrag ↓</option>
+            <option value="amount_asc">Betrag ↑</option>
+            <option value="merchant_asc">Händler A–Z</option>
+          </select>
+          <div id="adminBelegeCount" style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em"></div>
         </div>
         <div id="adminBelegeContainer">
           <div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Belege zu sehen</div>
@@ -1542,42 +1552,89 @@ Rules:
     document.getElementById('adminPwConfirm').addEventListener('keydown', e => { if (e.key === 'Enter') doChange(); });
   })();
 
+  let adminBelegeData = [], adminFoldersData = [], adminFolderMap = {};
+
   async function loadAdminBelege() {
     const userId = document.getElementById('adminUserSelect').value;
     const container = document.getElementById('adminBelegeContainer');
-    const foldersDiv = document.getElementById('adminFoldersList');
-    if (!userId) { container.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Belege zu sehen</div>'; foldersDiv.style.display = 'none'; return; }
+    const folderSel = document.getElementById('adminFolderSelect');
+    if (!userId) {
+      container.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Belege zu sehen</div>';
+      folderSel.innerHTML = '<option value="">Alle Belege</option>';
+      adminBelegeData = []; adminFoldersData = [];
+      return;
+    }
     container.innerHTML = '<div class="admin-empty">Laden…</div>';
     const auth = await getAdminAuthHeader();
     const [belegeRes, foldersRes] = await Promise.all([
       fetch(`/api/admin/belege?userId=${userId}`, { headers: { 'Authorization': auth } }),
       fetch(`/api/admin/folders?userId=${userId}`, { headers: { 'Authorization': auth } }),
     ]);
-    const userBelege = belegeRes.ok ? await belegeRes.json() : [];
-    const userFolders = foldersRes.ok ? await foldersRes.json() : [];
+    adminBelegeData = belegeRes.ok ? await belegeRes.json() : [];
+    adminFoldersData = foldersRes.ok ? await foldersRes.json() : [];
+    adminFolderMap = Object.fromEntries(adminFoldersData.map(f => [f.id, f.name]));
 
-    if (userFolders.length) {
-      foldersDiv.style.display = 'block';
-      document.getElementById('adminFoldersChips').innerHTML = userFolders.map(f => {
-        const count = userBelege.filter(b => b.folder_id === f.id).length;
-        return `<div class="folder-chip" style="cursor:default">📁 ${esc(f.name)} <span class="folder-chip-count">${count}</span></div>`;
+    // Populate folder dropdown
+    const curFolder = folderSel.value;
+    folderSel.innerHTML = `<option value="">Alle Belege (${adminBelegeData.length})</option>` +
+      adminFoldersData.map(f => {
+        const count = adminBelegeData.filter(b => b.folder_id === f.id).length;
+        return `<option value="${f.id}" ${f.id === curFolder ? 'selected' : ''}>📁 ${esc(f.name)} (${count})</option>`;
       }).join('');
-    } else {
-      foldersDiv.style.display = 'none';
+
+    document.getElementById('adminBelegeFilter').value = '';
+    renderAdminBelegeTable();
+  }
+
+  function renderAdminBelegeTable() {
+    const container = document.getElementById('adminBelegeContainer');
+    const folderId = document.getElementById('adminFolderSelect').value;
+    let filtered = folderId ? adminBelegeData.filter(b => b.folder_id === folderId) : [...adminBelegeData];
+
+    // Text filter
+    const q = (document.getElementById('adminBelegeFilter')?.value || '').toLowerCase().trim();
+    if (q) {
+      filtered = filtered.filter(b =>
+        (b.merchant || '').toLowerCase().includes(q) ||
+        (b.date || '').toLowerCase().includes(q) ||
+        (b.category || '').toLowerCase().includes(q) ||
+        (b.beschreibung || '').toLowerCase().includes(q) ||
+        (b.payment_method || '').toLowerCase().includes(q) ||
+        String(b.amount || '').includes(q)
+      );
     }
 
-    if (!userBelege.length) { container.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Belege</div>'; return; }
-    const folderMap = Object.fromEntries(userFolders.map(f => [f.id, f.name]));
+    // Sort
+    const sort = document.getElementById('adminBelegeSort')?.value || 'date_desc';
+    const [field, dir] = sort.split('_');
+    const asc = dir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      if (field === 'date') {
+        const da = a.created_at || a.date || ''; const db = b.created_at || b.date || '';
+        return da < db ? -asc : da > db ? asc : 0;
+      }
+      if (field === 'amount') return ((Number(a.amount) || 0) - (Number(b.amount) || 0)) * asc;
+      if (field === 'merchant') return (a.merchant || '').localeCompare(b.merchant || '') * asc;
+      return 0;
+    });
+
+    document.getElementById('adminBelegeCount').textContent = filtered.length + ' Beleg' + (filtered.length !== 1 ? 'e' : '');
+
+    if (!filtered.length) {
+      container.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Belege</div>';
+      return;
+    }
+
     container.innerHTML = `<table class="admin-belege-table">
       <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlungsart</th><th>Kategorie</th><th>Mappe</th></tr></thead>
-      <tbody>${userBelege.map(b => `<tr>
+      <tbody>${filtered.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
         <td style="color:var(--muted)">${esc(b.date||'—')}</td>
         <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
         <td><span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'—')}</span></td>
         <td><span class="cat-badge">${esc(b.category||'—')}</span></td>
-        <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
+        <td style="color:var(--muted);font-size:11px">${b.folder_id && adminFolderMap[b.folder_id] ? '📁 '+esc(adminFolderMap[b.folder_id]) : '—'}</td>
       </tr>`).join('')}</tbody>
     </table>`;
   }
@@ -1772,8 +1829,7 @@ Rules:
   function renderAdminBelegeWithAssign() {
     const container = document.getElementById('adminBelegeContainer');
     if (!reconState || reconAssigningIdx == null) {
-      // Re-render normal belege table (trigger normal load)
-      if (document.getElementById('adminUserSelect').value) loadAdminBelege();
+      renderAdminBelegeTable();
       return;
     }
     const tx = reconState.results[reconAssigningIdx]?.tx;
