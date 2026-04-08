@@ -216,16 +216,6 @@
   .fab { display: none; position: fixed; bottom: 28px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: white; border: none; font-size: 28px; line-height: 1; box-shadow: 0 4px 16px rgba(200,68,10,0.35); cursor: pointer; z-index: 90; transition: transform 0.15s, background 0.15s; }
   .fab:hover { background: #a33208; }
   .fab:active { transform: scale(0.92); }
-  .fab-menu { display: none; position: fixed; inset: 0; z-index: 95; }
-  .fab-menu.open { display: block; }
-  .fab-menu-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
-  .fab-menu-sheet { position: absolute; bottom: 0; left: 0; right: 0; background: white; border-radius: 16px 16px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
-  .fab-menu-title { font-family: var(--serif); font-size: 16px; margin-bottom: 16px; padding: 0 4px; }
-  .fab-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: var(--cream); border: none; border-radius: 8px; font-family: var(--mono); font-size: 14px; cursor: pointer; margin-bottom: 8px; transition: background 0.1s; text-align: left; }
-  .fab-menu-item:hover { background: var(--accent-light); }
-  .fab-menu-primary { background: var(--accent); color: white; font-weight: 500; font-size: 15px; padding: 16px; }
-  .fab-menu-primary:hover { background: #a33208; }
-  .fab-menu-cancel { background: transparent; color: var(--muted); justify-content: center; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0; }
   .btn-hamburger { display: none; background: none; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; font-size: 18px; cursor: pointer; color: var(--ink); line-height: 1; transition: border-color 0.15s; }
   .btn-hamburger:hover { border-color: var(--ink); }
   .hamburger-menu { position: absolute; right: 12px; top: 52px; background: white; border: 1.5px solid var(--border); border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; }
@@ -304,7 +294,6 @@
     .upload-section .section-label { display: none; }
     .mobile-upload-active .receipts-section { display: none; }
     .mobile-upload-active .fab { display: none !important; }
-    .mobile-upload-active .fab-menu { display: none !important; }
     .mobile-upload-active .kpi-bar { display: none; }
     .mobile-upload-active .custom-dropdown { display: none; }
     .mobile-upload-active .btn-new-folder { display: none; }
@@ -871,27 +860,9 @@
     </div><!-- /mainContent -->
   </div>
   <!-- Floating action button (mobile) -->
-  <button class="fab" id="fabBtn" onclick="toggleFabMenu()">+</button>
-  <!-- FAB action menu -->
-  <div id="fabMenu" class="fab-menu">
-    <div class="fab-menu-backdrop" onclick="closeFabMenu()"></div>
-    <div class="fab-menu-sheet">
-      <div class="fab-menu-title">Beleg hinzufügen</div>
-      <label class="fab-menu-item fab-menu-primary">
-        📷 Beleg scannen
-        <input type="file" accept="image/*" capture="environment" id="fabFileCamera" style="display:none" />
-      </label>
-      <label class="fab-menu-item">
-        🖼 Aus Fotomediathek
-        <input type="file" accept="image/*" id="fabFilePhotos" style="display:none" />
-      </label>
-      <label class="fab-menu-item">
-        📄 Aus Dateien
-        <input type="file" accept="image/*,.pdf" id="fabFileFiles" style="display:none" />
-      </label>
-      <button class="fab-menu-item fab-menu-cancel" onclick="closeFabMenu()">Abbrechen</button>
-    </div>
-  </div>
+  <label class="fab" id="fabBtn">+
+    <input type="file" accept="image/*,.pdf" id="fabFileInput" style="display:none" />
+  </label>
 </div>
 
 <script>
@@ -1771,22 +1742,12 @@ Rules:
     hideUploadSection();
   }
 
-  function toggleFabMenu() {
-    document.getElementById('fabMenu').classList.toggle('open');
-  }
-  function closeFabMenu() {
-    document.getElementById('fabMenu').classList.remove('open');
-  }
-
-  ['fabFileCamera', 'fabFilePhotos', 'fabFileFiles'].forEach(id => {
-    document.getElementById(id).addEventListener('change', e => {
-      closeFabMenu();
-      if (e.target.files[0]) {
-        showUploadSection();
-        handleFile(e.target.files[0]);
-      }
-      e.target.value = '';
-    });
+  document.getElementById('fabFileInput').addEventListener('change', e => {
+    if (e.target.files[0]) {
+      showUploadSection();
+      handleFile(e.target.files[0]);
+    }
+    e.target.value = '';
   });
 
   function updateKpiBar(filtered) {
