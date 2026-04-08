@@ -106,7 +106,7 @@
   .receipts-title { font-family: var(--serif); font-size: 20px; }
   .receipts-count { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
   .receipts-empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 4px; background: var(--cream); }
-  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; }
+  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; cursor: pointer; }
   .receipt-row:hover { border-color: var(--accent); }
   .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s; }
   .receipt-thumb:hover { opacity: 0.75; }
@@ -114,8 +114,6 @@
   .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
   .receipt-status { font-size: 10px; }
-  .btn-remove { background: none; border: none; cursor: pointer; color: var(--border); font-size: 16px; transition: color 0.15s; padding: 4px; }
-  .btn-remove:hover { color: var(--accent); }
   .summary-bar { display: flex; margin-top: 20px; padding: 16px 20px; background: var(--ink); color: var(--paper); border-radius: 3px; justify-content: space-between; align-items: center; }
   .summary-bar.hidden { display: none; }
   .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
@@ -272,10 +270,9 @@
 
     .receipts-section { margin-top: 24px; padding-top: 20px; }
     .receipts-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .receipt-row { grid-template-columns: 1fr auto auto; gap: 8px; padding: 12px; cursor: pointer; }
+    .receipt-row { grid-template-columns: 1fr auto; gap: 8px; padding: 12px; cursor: pointer; }
     .receipt-thumb { display: none; }
     .receipt-status { display: none; }
-    .btn-remove { display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; font-size: 16px; }
     .receipt-total { font-size: 14px; font-weight: 500; }
     .receipt-info .merchant { font-size: 13px; }
     .receipt-info .date-loc { font-size: 10px; }
@@ -1312,7 +1309,6 @@ Rules:
         </div>
         <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
-        <button class="btn-remove" onclick="event.stopPropagation();confirmDelete('${b.id}')">✕</button>
       </div>`).join('');
     document.getElementById('summaryBar').classList.remove('hidden');
     const total = filtered.reduce((s,b) => s + (Number(b.amount)||0), 0);
