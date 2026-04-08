@@ -214,7 +214,7 @@
   .custom-dropdown-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 3px; background: white; font-family: var(--mono); font-size: 12px; cursor: pointer; transition: border-color 0.15s; min-height: 38px; }
   .custom-dropdown-trigger:hover { border-color: var(--ink); }
   .custom-dropdown.open .custom-dropdown-trigger { border-color: var(--ink); }
-  .custom-dropdown-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1.5px solid var(--border); border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); z-index: 50; max-height: 300px; overflow-y: auto; }
+  .custom-dropdown-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1.5px solid var(--border); border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); z-index: 250; max-height: 300px; overflow-y: auto; }
   .custom-dropdown.open .custom-dropdown-menu { display: block; }
   .custom-dropdown-item { padding: 10px 14px; cursor: pointer; transition: background 0.1s; border-bottom: 1px solid var(--border); }
   .custom-dropdown-item:last-child { border-bottom: none; }
@@ -496,9 +496,14 @@
       </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Ordner</div>
-        <select id="detailFolder" class="field-select">
-          <option value="">— Kein Ordner —</option>
-        </select>
+        <div id="detailFolderDropdown" class="custom-dropdown">
+          <div class="custom-dropdown-trigger" onclick="toggleDropdown('detailFolderDropdown')">
+            <span id="detailFolderLabel">— Kein Ordner —</span>
+            <span style="font-size:10px;opacity:0.5">▼</span>
+          </div>
+          <div class="custom-dropdown-menu" id="detailFolderMenu"></div>
+        </div>
+        <input type="hidden" id="detailFolder" value="" />
       </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Beschreibung</div>
@@ -587,9 +592,14 @@
           <select id="adminUserSelect" onchange="loadAdminBelege()" class="field-select" style="flex:1;min-width:180px">
             <option value="">— Benutzer:in wählen —</option>
           </select>
-          <select id="adminFolderSelect" onchange="renderAdminBelegeTable()" class="field-select" style="flex:1;min-width:180px">
-            <option value="">Alle Belege</option>
-          </select>
+          <div id="adminFolderDropdown" class="custom-dropdown" style="flex:1;min-width:180px">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('adminFolderDropdown')">
+              <span id="adminFolderLabel">Alle Belege</span>
+              <span style="font-size:10px;opacity:0.5">▼</span>
+            </div>
+            <div class="custom-dropdown-menu" id="adminFolderMenu"></div>
+          </div>
+          <input type="hidden" id="adminFolderSelect" value="" />
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px" id="adminBelegeControls" style="display:none">
           <input type="text" id="adminBelegeFilter" class="field-input" placeholder="Suchen…" oninput="renderAdminBelegeTable()" style="flex:1;min-width:140px;padding:7px 10px;font-size:12px" />
@@ -1223,19 +1233,51 @@ Rules:
     if (deleteBtn) deleteBtn.style.display = activeFolder ? 'inline-block' : 'none';
   }
 
-  function toggleFolderDropdown() {
-    document.getElementById('folderDropdown').classList.toggle('open');
+  function toggleDropdown(id) {
+    // Close all other dropdowns first
+    document.querySelectorAll('.custom-dropdown.open').forEach(d => { if (d.id !== id) d.classList.remove('open'); });
+    document.getElementById(id).classList.toggle('open');
   }
+
+  function toggleFolderDropdown() { toggleDropdown('folderDropdown'); }
 
   function selectFolder(id) {
     document.getElementById('folderDropdown').classList.remove('open');
     filterByFolder(id);
   }
 
-  // Close dropdown when clicking outside
+  function selectDetailFolder(id) {
+    document.getElementById('detailFolderDropdown').classList.remove('open');
+    document.getElementById('detailFolder').value = id || '';
+    const label = document.getElementById('detailFolderLabel');
+    if (id) {
+      const f = folders.find(f => f.id === id);
+      const p = f ? parseFolderNameParts(f.name) : null;
+      label.textContent = p ? `📁 ${p.customer}` : '—';
+    } else {
+      label.textContent = '— Kein Ordner —';
+    }
+  }
+
+  function selectAdminFolder(id) {
+    document.getElementById('adminFolderDropdown').classList.remove('open');
+    document.getElementById('adminFolderSelect').value = id || '';
+    const label = document.getElementById('adminFolderLabel');
+    if (id) {
+      const f = adminFoldersData.find(f => f.id === id);
+      const p = f ? parseFolderNameParts(f.name) : null;
+      label.textContent = p ? `📁 ${p.customer}` : 'Alle Belege';
+    } else {
+      label.textContent = 'Alle Belege';
+    }
+    renderAdminBelegeTable();
+  }
+
+  // Close all dropdowns when clicking outside
   document.addEventListener('click', e => {
-    const dd = document.getElementById('folderDropdown');
-    if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+    if (!e.target.closest('.custom-dropdown')) {
+      document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
+    }
   });
 
   function filterByFolder(id) {
@@ -1403,9 +1445,21 @@ Rules:
     document.getElementById('detailAddress').value = detailBeleg.address || '';
     document.getElementById('detailVatAmount').value = detailBeleg.vat_amount != null ? Number(detailBeleg.vat_amount).toFixed(2) : '';
     document.getElementById('detailVatRate').value = detailBeleg.vat_rate != null ? detailBeleg.vat_rate : '';
-    const folderSel = document.getElementById('detailFolder');
-    folderSel.innerHTML = '<option value="">— Kein Ordner —</option>' +
-      folders.map(f => `<option value="${f.id}" ${detailBeleg.folder_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+    // Populate detail folder custom dropdown
+    document.getElementById('detailFolder').value = detailBeleg.folder_id || '';
+    const detailFolderMenu = document.getElementById('detailFolderMenu');
+    detailFolderMenu.innerHTML = `<div class="custom-dropdown-item ${!detailBeleg.folder_id?'active':''}" onclick="selectDetailFolder(null)">
+        <div class="folder-name">— Kein Ordner —</div>
+      </div>` +
+      folders.map(f => {
+        const p = parseFolderNameParts(f.name);
+        return `<div class="custom-dropdown-item ${detailBeleg.folder_id===f.id?'active':''}" onclick="selectDetailFolder('${f.id}')">
+          <div class="folder-name">📁 ${esc(p.customer)}</div>
+          ${p.dates ? `<div class="folder-dates">${esc(p.dates)}</div>` : ''}
+        </div>`;
+      }).join('');
+    const activeDetailFolder = detailBeleg.folder_id ? folders.find(f => f.id === detailBeleg.folder_id) : null;
+    document.getElementById('detailFolderLabel').textContent = activeDetailFolder ? `📁 ${parseFolderNameParts(activeDetailFolder.name).customer}` : '— Kein Ordner —';
     document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
     document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
@@ -1654,10 +1708,11 @@ Rules:
   async function loadAdminBelege() {
     const userId = document.getElementById('adminUserSelect').value;
     const container = document.getElementById('adminBelegeContainer');
-    const folderSel = document.getElementById('adminFolderSelect');
     if (!userId) {
       container.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Belege zu sehen</div>';
-      folderSel.innerHTML = '<option value="">Alle Belege</option>';
+      document.getElementById('adminFolderSelect').value = '';
+      document.getElementById('adminFolderLabel').textContent = 'Alle Belege';
+      document.getElementById('adminFolderMenu').innerHTML = '';
       adminBelegeData = []; adminFoldersData = [];
       return;
     }
@@ -1671,11 +1726,18 @@ Rules:
     adminFoldersData = sortFoldersByStartDate(foldersRes.ok ? await foldersRes.json() : []);
     adminFolderMap = Object.fromEntries(adminFoldersData.map(f => [f.id, f.name]));
 
-    // Populate folder dropdown
-    const curFolder = folderSel.value;
-    folderSel.innerHTML = `<option value="">Alle Belege</option>` +
+    // Populate admin folder custom dropdown
+    const curFolder = document.getElementById('adminFolderSelect').value;
+    const adminFolderMenu = document.getElementById('adminFolderMenu');
+    adminFolderMenu.innerHTML = `<div class="custom-dropdown-item ${!curFolder?'active':''}" onclick="selectAdminFolder(null)">
+        <div class="folder-name">Alle Belege</div>
+      </div>` +
       adminFoldersData.map(f => {
-        return `<option value="${f.id}" ${f.id === curFolder ? 'selected' : ''}>📁 ${esc(f.name)}</option>`;
+        const p = parseFolderNameParts(f.name);
+        return `<div class="custom-dropdown-item ${f.id===curFolder?'active':''}" onclick="selectAdminFolder('${f.id}')">
+          <div class="folder-name">📁 ${esc(p.customer)}</div>
+          ${p.dates ? `<div class="folder-dates">${esc(p.dates)}</div>` : ''}
+        </div>`;
       }).join('');
 
     document.getElementById('adminBelegeFilter').value = '';
