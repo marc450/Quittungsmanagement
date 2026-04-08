@@ -1194,6 +1194,7 @@ Rules:
       document.getElementById('resultCard').classList.remove('visible');
       document.getElementById('previewArea').classList.remove('visible');
       document.getElementById('fileInput').value = '';
+      document.querySelector('.upload-section')?.classList.remove('mobile-visible');
       currentResult = null; croppedBase64 = null;
       await loadBelege();
     } catch (err) {
