@@ -111,7 +111,8 @@
   .receipt-row:hover { border-color: var(--accent); }
   .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s; }
   .receipt-thumb:hover { opacity: 0.75; }
-  .receipt-info .merchant { font-weight: 500; font-size: 13px; }
+  .receipt-info { min-width: 0; }
+  .receipt-info .merchant { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
   .receipt-status { font-size: 10px; }
