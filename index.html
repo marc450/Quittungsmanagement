@@ -1113,9 +1113,19 @@ Rules:
     if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
   }
 
+  function parseFolderStartDate(name) {
+    const m = (name || '').match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (!m) return '9999';
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  function sortFoldersByStartDate(arr) {
+    return [...arr].sort((a, b) => parseFolderStartDate(a.name).localeCompare(parseFolderStartDate(b.name)));
+  }
+
   async function loadFolders() {
     const { data, error } = await sb.from('folders').select('id,name').order('created_at', { ascending: true });
-    if (!error) { folders = data || []; renderFolders(); }
+    if (!error) { folders = sortFoldersByStartDate(data || []); renderFolders(); }
   }
 
   function renderFolders() {
@@ -1586,7 +1596,7 @@ Rules:
       fetch(`/api/admin/folders?userId=${userId}`, { headers: { 'Authorization': auth } }),
     ]);
     adminBelegeData = belegeRes.ok ? await belegeRes.json() : [];
-    adminFoldersData = foldersRes.ok ? await foldersRes.json() : [];
+    adminFoldersData = sortFoldersByStartDate(foldersRes.ok ? await foldersRes.json() : []);
     adminFolderMap = Object.fromEntries(adminFoldersData.map(f => [f.id, f.name]));
 
     // Populate folder dropdown
