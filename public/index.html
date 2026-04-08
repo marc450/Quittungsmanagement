@@ -133,7 +133,7 @@
   .btn-new-folder { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border: 1.5px dashed var(--border); border-radius: 20px; cursor: pointer; background: transparent; font-family: var(--mono); font-size: 11px; color: var(--muted); transition: all 0.15s; }
   .btn-new-folder:hover { border-color: var(--accent); color: var(--accent); }
   .receipt-row { cursor: grab; }
-  .receipt-row.dragging { opacity: 0.35; }
+  .receipt-row.dragging { opacity: 0.35; transform: scale(0.6); transform-origin: top left; max-height: 40px; overflow: hidden; transition: transform 0.15s, opacity 0.15s; }
 
   /* Inline badges */
   .pm-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -297,6 +297,11 @@
       <button class="dialog-confirm danger" id="confirmOk">Bestätigen</button>
     </div>
   </div>
+</div>
+
+<!-- Image viewer overlay -->
+<div id="imageViewer" onclick="closeImageViewer()" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.85);cursor:zoom-out;align-items:center;justify-content:center;padding:24px">
+  <img id="imageViewerImg" src="" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px;box-shadow:0 4px 32px rgba(0,0,0,0.5)" />
 </div>
 
 <!-- Admin change password dialog -->
@@ -1566,7 +1571,7 @@ Rules:
     container.innerHTML = `<table class="admin-belege-table">
       <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlungsart</th><th>Kategorie</th><th>Mappe</th></tr></thead>
       <tbody>${userBelege.map(b => `<tr>
-        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
+        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
         <td style="color:var(--muted)">${esc(b.date||'—')}</td>
         <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
@@ -1575,6 +1580,18 @@ Rules:
         <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
       </tr>`).join('')}</tbody>
     </table>`;
+  }
+
+  // ---- Image viewer ----
+  function openImageViewer(url) {
+    if (!url) return;
+    document.getElementById('imageViewerImg').src = url;
+    const v = document.getElementById('imageViewer');
+    v.style.display = 'flex';
+  }
+  function closeImageViewer() {
+    document.getElementById('imageViewer').style.display = 'none';
+    document.getElementById('imageViewerImg').src = '';
   }
 
   // ---- Reconciliation ----
