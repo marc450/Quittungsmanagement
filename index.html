@@ -553,6 +553,7 @@
     <div id="detailRemoveFromFolder" style="display:none;padding:0 20px 12px">
       <button onclick="removeFromFolder()" style="width:100%;padding:9px;background:transparent;border:1px dashed var(--border);border-radius:3px;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↩ Aus Einsatz entfernen</button>
     </div>
+    <div class="error-msg" id="detailError" style="margin:0 20px 8px"></div>
     <div class="modal-footer">
       <button class="btn-danger" onclick="deleteCurrentBeleg()">Löschen</button>
       <button class="btn-primary" id="saveDetailBtn" onclick="saveDetailChanges()"><span class="btn-label">Änderungen speichern</span><span class="spinner"></span></button>
@@ -1610,8 +1611,9 @@ Rules:
   });
 
   async function saveDetailChanges() {
-    console.log('saveDetailChanges called, detailBeleg:', detailBeleg?.id);
-    if (!detailBeleg) { console.log('no detailBeleg'); return; }
+    const errEl = document.getElementById('detailError');
+    errEl.classList.remove('visible'); errEl.textContent = '';
+    if (!detailBeleg) return;
     if (!document.getElementById('detailPaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
     if (!document.getElementById('detailCategory').value) { nativeConfirm('Bitte Kategorie wählen.', 'Pflichtfeld'); return; }
     const btn = document.getElementById('saveDetailBtn');
@@ -1631,15 +1633,12 @@ Rules:
         beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
         folder_id: document.getElementById('detailFolder').value || null,
       };
-      console.log('saveDetailChanges payload:', JSON.stringify(payload), 'id:', detailBeleg.id);
       const { error } = await sb.from('belege').update(payload).eq('id', detailBeleg.id);
-      console.log('saveDetailChanges result, error:', error);
-      if (error) { showError('Fehler: ' + error.message); return; }
+      if (error) { errEl.textContent = 'Fehler: ' + error.message; errEl.classList.add('visible'); return; }
       closeDetail();
       await loadBelege();
     } catch (e) {
-      console.error('saveDetailChanges exception:', e);
-      showError('Fehler beim Speichern: ' + e.message);
+      errEl.textContent = 'Fehler: ' + e.message; errEl.classList.add('visible');
     } finally {
       btn.classList.remove('loading'); btn.disabled = false;
     }
