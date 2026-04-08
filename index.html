@@ -62,6 +62,10 @@
   .btn-analyze .spinner { width: 12px; height: 12px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
   .btn-analyze.loading .spinner { display: block; }
   .btn-analyze.loading .btn-label { display: none; }
+  #saveDetailBtn .spinner { width: 12px; height: 12px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  #saveDetailBtn.loading .spinner { display: inline-block; }
+  #saveDetailBtn.loading .btn-label { display: none; }
+  #saveDetailBtn:disabled { opacity: 0.6; cursor: not-allowed; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Result card */
@@ -562,7 +566,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-danger" onclick="deleteCurrentBeleg()">Löschen</button>
-      <button class="btn-primary" onclick="saveDetailChanges()">Änderungen speichern</button>
+      <button class="btn-primary" id="saveDetailBtn" onclick="saveDetailChanges()"><span class="btn-label">Änderungen speichern</span><span class="spinner"></span></button>
     </div>
   </div>
 </div>
@@ -1638,23 +1642,31 @@ Rules:
     if (!detailBeleg) return;
     if (!document.getElementById('detailPaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
     if (!document.getElementById('detailCategory').value) { nativeConfirm('Bitte Kategorie wählen.', 'Pflichtfeld'); return; }
-    const amount = document.getElementById('detailAmount').value;
-    const { error } = await sb.from('belege').update({
-      merchant: document.getElementById('detailMerchant').value.trim() || null,
-      date: document.getElementById('detailDate').value.trim() || null,
-      amount: amount !== '' ? parseFloat(amount) : null,
-      currency: document.getElementById('detailCurrency').value.trim() || null,
-      payment_method: document.getElementById('detailPaymentMethod').value,
-      category: document.getElementById('detailCategory').value,
-      address: document.getElementById('detailAddress').value.trim() || null,
-      vat_amount: document.getElementById('detailVatAmount').value !== '' ? parseFloat(document.getElementById('detailVatAmount').value) : null,
-      vat_rate: document.getElementById('detailVatRate').value !== '' ? parseFloat(document.getElementById('detailVatRate').value) : null,
-      beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
-      folder_id: document.getElementById('detailFolder').value || null,
-    }).eq('id', detailBeleg.id);
-    if (error) { showError('Fehler: ' + error.message); return; }
-    closeDetail();
-    await loadBelege();
+    const btn = document.getElementById('saveDetailBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    try {
+      const amount = document.getElementById('detailAmount').value;
+      const { error } = await sb.from('belege').update({
+        merchant: document.getElementById('detailMerchant').value.trim() || null,
+        date: document.getElementById('detailDate').value.trim() || null,
+        amount: amount !== '' ? parseFloat(amount) : null,
+        currency: document.getElementById('detailCurrency').value.trim() || null,
+        payment_method: document.getElementById('detailPaymentMethod').value,
+        category: document.getElementById('detailCategory').value,
+        address: document.getElementById('detailAddress').value.trim() || null,
+        vat_amount: document.getElementById('detailVatAmount').value !== '' ? parseFloat(document.getElementById('detailVatAmount').value) : null,
+        vat_rate: document.getElementById('detailVatRate').value !== '' ? parseFloat(document.getElementById('detailVatRate').value) : null,
+        beschreibung: document.getElementById('detailBeschreibung').value.trim() || null,
+        folder_id: document.getElementById('detailFolder').value || null,
+      }).eq('id', detailBeleg.id);
+      if (error) { showError('Fehler: ' + error.message); return; }
+      closeDetail();
+      await loadBelege();
+    } catch (e) {
+      showError('Fehler beim Speichern: ' + e.message);
+    } finally {
+      btn.classList.remove('loading'); btn.disabled = false;
+    }
   }
 
   async function deleteCurrentBeleg() {
