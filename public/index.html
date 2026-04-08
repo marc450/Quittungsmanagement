@@ -114,10 +114,6 @@
   .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
   .receipt-status { font-size: 10px; }
-  .summary-bar { display: flex; margin-top: 20px; padding: 16px 20px; background: var(--ink); color: var(--paper); border-radius: 3px; justify-content: space-between; align-items: center; }
-  .summary-bar.hidden { display: none; }
-  .summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
-  .summary-value { font-family: var(--serif); font-size: 24px; }
 
   /* Folders */
   .folders-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; align-items: center; }
@@ -209,6 +205,22 @@
   .admin-belege-table tr:last-child td { border-bottom: none; }
   .admin-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); }
   .admin-empty { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; }
+  /* Hamburger + CTA */
+  .btn-add-beleg { display: none; padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 3px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+  .btn-add-beleg:hover { background: #a33208; }
+  .btn-hamburger { display: none; background: none; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; font-size: 18px; cursor: pointer; color: var(--ink); line-height: 1; transition: border-color 0.15s; }
+  .btn-hamburger:hover { border-color: var(--ink); }
+  .hamburger-menu { position: absolute; right: 12px; top: 52px; background: white; border: 1.5px solid var(--border); border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; }
+  .hamburger-menu button { display: block; width: 100%; padding: 12px 20px; background: none; border: none; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; text-align: left; cursor: pointer; transition: background 0.1s; }
+  .hamburger-menu button:last-child { border-bottom: none; }
+  .hamburger-menu button:hover { background: var(--cream); }
+
+  /* KPI bar */
+  .kpi-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .kpi-item { flex: 1; min-width: 70px; padding: 10px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; text-align: center; }
+  .kpi-value { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
+  .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 2px; }
+
   /* Custom dropdown */
   .custom-dropdown { position: relative; }
   .custom-dropdown-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 3px; background: white; font-family: var(--mono); font-size: 12px; cursor: pointer; transition: border-color 0.15s; min-height: 38px; }
@@ -265,7 +277,11 @@
     .header-user { display: none; }
     .logo { font-size: 20px; }
     .header-right { gap: 8px; }
-    .btn-logout { font-size: 10px; padding: 6px 10px; }
+    .desktop-only { display: none !important; }
+    .btn-add-beleg { display: inline-block; }
+    .btn-hamburger { display: inline-block; }
+    .upload-section { display: none; }
+    .upload-section.mobile-visible { display: block; }
 
     .drop-zone { padding: 28px 16px; }
     .drop-icon { font-size: 24px; }
@@ -306,9 +322,6 @@
     /* Dialog inputs: prevent iOS zoom */
     .dialog-input, .field-input, .field-select { font-size: 16px; }
 
-    /* Summary bar */
-    .summary-bar { flex-direction: column; gap: 4px; padding: 12px 16px; }
-    .summary-value { font-size: 20px; }
 
     /* New folder dialog date inputs */
     #newFolderDialog .dialog-box { max-width: 100%; }
@@ -527,10 +540,17 @@
       <div class="logo">Quit<span>tungen</span></div>
       <div class="header-right">
         <span class="header-user" id="headerUser"></span>
-        <button class="btn-logout" onclick="openChangePassword()">Passwort</button>
-        <button class="btn-logout" onclick="logout()">Abmelden</button>
+        <button class="btn-logout desktop-only" onclick="openChangePassword()">Passwort</button>
+        <button class="btn-logout desktop-only" onclick="logout()">Abmelden</button>
+        <button class="btn-add-beleg" onclick="showUploadSection()">+ Beleg</button>
+        <button class="btn-hamburger" onclick="toggleHamburger()">☰</button>
       </div>
     </header>
+    <!-- Hamburger menu (mobile) -->
+    <div id="hamburgerMenu" class="hamburger-menu" style="display:none">
+      <button onclick="openChangePassword();toggleHamburger()">Passwort ändern</button>
+      <button onclick="logout();toggleHamburger()">Abmelden</button>
+    </div>
 
     <!-- Tab bar (admins only, desktop only) -->
     <div class="tab-bar" id="tabBar" style="display:none">
@@ -738,6 +758,28 @@
           <div class="receipts-count" id="receiptsCount">0 Belege</div>
         </div>
       </div>
+      <div class="kpi-bar" id="kpiBar">
+        <div class="kpi-item">
+          <div class="kpi-value" id="kpiCount">0</div>
+          <div class="kpi-label">Belege</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value" id="kpiTotalCHF">0.00</div>
+          <div class="kpi-label">CHF</div>
+        </div>
+        <div class="kpi-item" id="kpiEurBox" style="display:none">
+          <div class="kpi-value" id="kpiTotalEUR">0.00</div>
+          <div class="kpi-label">EUR</div>
+        </div>
+        <div class="kpi-item" id="kpiUsdBox" style="display:none">
+          <div class="kpi-value" id="kpiTotalUSD">0.00</div>
+          <div class="kpi-label">USD</div>
+        </div>
+        <div class="kpi-item">
+          <div class="kpi-value" id="kpiVat">0.00</div>
+          <div class="kpi-label">MwSt CHF</div>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px">
         <div id="folderDropdown" class="custom-dropdown" style="flex:1;min-width:160px">
           <div class="custom-dropdown-trigger" onclick="toggleFolderDropdown()">
@@ -761,12 +803,6 @@
         </select>
       </div>
       <div id="receiptsList"><div class="receipts-empty">Noch keine Belege erfasst</div></div>
-      <div class="summary-bar hidden" id="summaryBar">
-        <div>
-          <div class="summary-label">Total (alle Währungen gemischt)</div>
-          <div class="summary-value" id="summaryTotal">—</div>
-        </div>
-      </div>
     </div>
     </div><!-- /mainContent -->
   </div>
@@ -1390,9 +1426,9 @@ Rules:
     });
 
     document.getElementById('receiptsCount').textContent = filtered.length + ' Beleg' + (filtered.length !== 1 ? 'e' : '');
+    updateKpiBar(filtered);
     if (filtered.length === 0) {
       el.innerHTML = '<div class="receipts-empty">Keine Belege in diesem Ordner</div>';
-      document.getElementById('summaryBar').classList.add('hidden');
       return;
     }
     el.innerHTML = filtered.map(b => `
@@ -1410,9 +1446,6 @@ Rules:
         <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
       </div>`).join('');
-    document.getElementById('summaryBar').classList.remove('hidden');
-    const total = filtered.reduce((s,b) => s + (Number(b.amount)||0), 0);
-    document.getElementById('summaryTotal').textContent = total.toFixed(2);
   }
 
   async function confirmDelete(id) {
@@ -1514,6 +1547,39 @@ Rules:
     if (error) { showError('Fehler: ' + error.message); return; }
     closeDetail();
     await loadBelege();
+  }
+
+  function toggleHamburger() {
+    const menu = document.getElementById('hamburgerMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+  document.addEventListener('click', e => {
+    const menu = document.getElementById('hamburgerMenu');
+    if (menu && menu.style.display !== 'none' && !e.target.closest('.btn-hamburger') && !e.target.closest('.hamburger-menu')) {
+      menu.style.display = 'none';
+    }
+  });
+
+  function showUploadSection() {
+    const section = document.querySelector('.upload-section');
+    if (section) {
+      section.classList.toggle('mobile-visible');
+      if (section.classList.contains('mobile-visible')) section.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  function updateKpiBar(filtered) {
+    const chf = filtered.filter(b => (b.currency||'CHF').toUpperCase() === 'CHF').reduce((s,b) => s + (Number(b.amount)||0), 0);
+    const eur = filtered.filter(b => (b.currency||'').toUpperCase() === 'EUR').reduce((s,b) => s + (Number(b.amount)||0), 0);
+    const usd = filtered.filter(b => (b.currency||'').toUpperCase() === 'USD').reduce((s,b) => s + (Number(b.amount)||0), 0);
+    const vat = filtered.reduce((s,b) => s + (Number(b.vat_amount)||0), 0);
+    document.getElementById('kpiCount').textContent = filtered.length;
+    document.getElementById('kpiTotalCHF').textContent = chf.toFixed(2);
+    document.getElementById('kpiVat').textContent = vat.toFixed(2);
+    const eurBox = document.getElementById('kpiEurBox');
+    const usdBox = document.getElementById('kpiUsdBox');
+    if (eur > 0) { eurBox.style.display = ''; document.getElementById('kpiTotalEUR').textContent = eur.toFixed(2); } else { eurBox.style.display = 'none'; }
+    if (usd > 0) { usdBox.style.display = ''; document.getElementById('kpiTotalUSD').textContent = usd.toFixed(2); } else { usdBox.style.display = 'none'; }
   }
 
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
