@@ -294,6 +294,20 @@
   </div>
 </div>
 
+<!-- Assign picker dialog -->
+<div class="dialog-overlay" id="assignPickerDialog" onclick="if(event.target===this)closeAssignPicker()">
+  <div class="dialog-box" style="max-width:480px;max-height:70vh;display:flex;flex-direction:column">
+    <div class="dialog-body" style="padding-bottom:8px;flex-shrink:0">
+      <div class="dialog-title">Quittung zuordnen</div>
+      <div class="dialog-msg">Verfügbare Quittungen auswählen</div>
+    </div>
+    <div id="assignPickerList" style="flex:1;overflow-y:auto;border-top:1px solid var(--border)"></div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" onclick="closeAssignPicker()" style="flex:1">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Admin change password dialog -->
 <div class="dialog-overlay" id="adminPwDialog">
   <div class="dialog-box" style="max-width:380px">
@@ -1483,6 +1497,7 @@ Rules:
   }
 
   // ---- Reconciliation ----
+  let reconState = null; // { results, belege, folderMap }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   function populateReconUserSelect() {
@@ -1580,6 +1595,95 @@ Rules:
     return results;
   }
 
+  function renderReconResults() {
+    if (!reconState) return;
+    const { results, folderMap } = reconState;
+    const summaryEl = document.getElementById('reconSummary');
+    const resultsEl = document.getElementById('reconResults');
+    const matched = results.filter(r => r.status === 'matched').length;
+    const unmatched = results.filter(r => r.status === 'unmatched').length;
+    document.getElementById('reconTotalCount').textContent = results.length;
+    document.getElementById('reconMatchedCount').textContent = matched;
+    document.getElementById('reconUnmatchedCount').textContent = unmatched;
+    summaryEl.style.display = 'block';
+
+    if (!results.length) {
+      resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
+      return;
+    }
+
+    resultsEl.innerHTML = results.map((r, idx) => {
+      const tx = r.tx;
+      const b = r.beleg;
+      const isMatched = r.status === 'matched';
+      const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
+      return `<div class="recon-row ${isMatched ? 'matched' : 'unmatched'}">
+        <div class="recon-left">
+          <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
+          <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? tx.amount_original.toFixed(2) : '') : ''}</div>
+        </div>
+        <div style="text-align:center">
+          <div class="recon-amount">${tx.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF</div>
+          <div class="recon-arrow">${isMatched ? '✅' : '⚠️'}</div>
+        </div>
+        <div class="recon-right">
+          ${isMatched ? `
+            <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
+            <div>
+              <div class="recon-merchant">${esc(b.merchant||'—')}</div>
+              <div class="recon-match-info">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
+            </div>
+          ` : `
+            <button onclick="openAssignPicker(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
+          `}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function openAssignPicker(rowIdx) {
+    if (!reconState) return;
+    const usedIds = new Set(reconState.results.filter(r => r.beleg).map(r => r.beleg.id));
+    const available = reconState.results[rowIdx].tx;
+    const candidates = reconState.belege.filter(b => !usedIds.has(b.id));
+
+    if (!candidates.length) { showError('Keine verfügbaren Quittungen zum Zuordnen.'); return; }
+
+    const overlay = document.getElementById('assignPickerDialog');
+    const list = document.getElementById('assignPickerList');
+    overlay.dataset.rowIdx = rowIdx;
+
+    list.innerHTML = candidates.map(b => {
+      const folderName = b.folder_id && reconState.folderMap[b.folder_id] ? reconState.folderMap[b.folder_id] : null;
+      return `<div onclick="confirmAssign('${b.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background='white'">
+        <img src="${esc(b.image_url||'')}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--border);flex-shrink:0" onerror="this.style.opacity='0.1'" />
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.merchant||'Unbekannt')}</div>
+          <div style="font-size:11px;color:var(--muted)">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
+        </div>
+        <div style="font-family:var(--serif);font-size:14px;white-space:nowrap">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
+      </div>`;
+    }).join('');
+
+    overlay.classList.add('active');
+  }
+
+  function confirmAssign(belegId) {
+    const overlay = document.getElementById('assignPickerDialog');
+    const rowIdx = parseInt(overlay.dataset.rowIdx);
+    overlay.classList.remove('active');
+    if (!reconState || !reconState.results[rowIdx]) return;
+    const beleg = reconState.belege.find(b => b.id === belegId);
+    if (!beleg) return;
+    reconState.results[rowIdx].beleg = beleg;
+    reconState.results[rowIdx].status = 'matched';
+    renderReconResults();
+  }
+
+  function closeAssignPicker() {
+    document.getElementById('assignPickerDialog').classList.remove('active');
+  }
+
   async function runReconciliation(file, userId) {
     const statusEl = document.getElementById('reconStatus');
     const statusText = document.getElementById('reconStatusText');
@@ -1617,47 +1721,15 @@ Rules:
 
       // Step 4: Match
       statusText.textContent = 'Abgleich läuft…';
-      const results = matchTransactions(transactions, userBelege);
+      reconState = {
+        results: matchTransactions(transactions, userBelege),
+        belege: userBelege,
+        folderMap: Object.fromEntries(userFolders.map(f => [f.id, f.name])),
+      };
 
       // Step 5: Render
       statusEl.style.display = 'none';
-      const matched = results.filter(r => r.status === 'matched').length;
-      const unmatched = results.filter(r => r.status === 'unmatched').length;
-      document.getElementById('reconTotalCount').textContent = results.length;
-      document.getElementById('reconMatchedCount').textContent = matched;
-      document.getElementById('reconUnmatchedCount').textContent = unmatched;
-      summaryEl.style.display = 'block';
-
-      if (!results.length) {
-        resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
-        return;
-      }
-
-      resultsEl.innerHTML = results.map(r => {
-        const tx = r.tx;
-        const b = r.beleg;
-        const isMatched = r.status === 'matched';
-        const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
-        return `<div class="recon-row ${isMatched ? 'matched' : 'unmatched'}">
-          <div class="recon-left">
-            <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
-            <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? tx.amount_original.toFixed(2) : '') : ''}</div>
-          </div>
-          <div style="text-align:center">
-            <div class="recon-amount">${tx.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF</div>
-            <div class="recon-arrow">${isMatched ? '✅' : '⚠️'}</div>
-          </div>
-          <div class="recon-right">
-            ${isMatched ? `
-              <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
-              <div>
-                <div class="recon-merchant">${esc(b.merchant||'—')}</div>
-                <div class="recon-match-info">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
-              </div>
-            ` : `<div class="recon-match-info" style="color:var(--accent)">Keine Quittung gefunden</div>`}
-          </div>
-        </div>`;
-      }).join('');
+      renderReconResults();
 
     } catch (err) {
       statusEl.style.display = 'none';
