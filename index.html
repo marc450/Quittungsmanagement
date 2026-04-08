@@ -729,49 +729,68 @@
     </div>
 
     <div class="result-card" id="resultCard">
-      <div class="result-header">
-        <div class="result-title" id="resultMerchant">—</div>
-        <div class="badge" id="countryBadge">—</div>
+      <div style="padding:16px 20px">
+        <div class="cell-label" style="margin-bottom:6px">Händler</div>
+        <input type="text" id="resultMerchant" class="field-input" placeholder="Händlername" style="font-weight:500;font-size:15px" />
       </div>
-      <div class="result-grid">
-        <div class="result-cell"><div class="cell-label">Gesamtbetrag</div><div class="cell-value total" id="resultTotal">—</div></div>
-        <div class="result-cell"><div class="cell-label">Währung</div><div class="cell-value" id="resultCurrency">—</div></div>
-        <div class="result-cell"><div class="cell-label">Datum</div><div class="cell-value" id="resultDate">—</div></div>
-        <div class="result-cell"><div class="cell-label">MwSt (Schweiz)</div><div class="cell-value vat" id="resultVAT">—</div></div>
+      <div style="padding:0 20px 16px;display:grid;grid-template-columns:1fr auto;gap:8px">
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">Betrag</div>
+          <input type="number" step="0.01" id="resultTotal" class="field-input" placeholder="0.00" />
+        </div>
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">Währung</div>
+          <input type="text" id="resultCurrency" class="field-input" placeholder="CHF" style="width:70px" />
+        </div>
+      </div>
+      <div style="padding:0 20px 16px">
+        <div class="cell-label" style="margin-bottom:6px">Datum</div>
+        <input type="text" id="resultDate" class="field-input" placeholder="TT.MM.JJJJ" />
+      </div>
+      <div style="padding:0 20px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">MwSt Betrag</div>
+          <input type="number" step="0.01" id="resultVatAmount" class="field-input" placeholder="0.00" />
+        </div>
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">MwSt %</div>
+          <input type="number" step="0.1" id="resultVatRate" class="field-input" placeholder="8.1" />
+        </div>
+      </div>
+      <div style="padding:0 20px 16px">
+        <div class="cell-label" style="margin-bottom:6px">Adresse / Ort</div>
+        <input type="text" id="resultAddress" class="field-input" placeholder="Geschäftsadresse" />
       </div>
       <div id="itemsSection" class="items-section" style="display:none">
         <div class="items-label">Positionen</div>
         <div id="itemsList"></div>
       </div>
-      <div class="result-address">
-        <div class="address-label">Adresse / Ort</div>
-        <div class="address-text" id="resultAddress">—</div>
-      </div>
-      <div class="save-form">
-        <div class="section-label" style="margin-bottom:12px">Kategorisierung</div>
-        <div class="save-form-grid">
-          <div>
-            <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
-            <select id="savePaymentMethod" class="field-select">
-              <option value="Bar">Bar</option>
-              <option value="Maestro">Maestro</option>
-              <option value="KK">Kreditkarte (KK)</option>
-            </select>
-          </div>
-          <div>
-            <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
-            <select id="saveCategory" class="field-select">
-              <option value="Barauslage">Barauslage</option>
-              <option value="Essen Privat">Essen Privat</option>
-              <option value="Essen Firma">Essen Firma</option>
-            </select>
-          </div>
+      <div style="padding:0 20px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
+          <select id="savePaymentMethod" class="field-select">
+            <option value="Bar">Bar</option>
+            <option value="Maestro">Maestro</option>
+            <option value="KK">Kreditkarte (KK)</option>
+          </select>
         </div>
-        <input type="text" id="saveBeschreibung" class="field-input" placeholder="Beschreibung (optional)" style="margin-bottom:12px" />
+        <div>
+          <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
+          <select id="saveCategory" class="field-select">
+            <option value="Barauslage">Barauslage</option>
+            <option value="Essen Privat">Essen Privat</option>
+            <option value="Essen Firma">Essen Firma</option>
+          </select>
+        </div>
+      </div>
+      <div style="padding:0 20px 16px">
+        <input type="text" id="saveBeschreibung" class="field-input" placeholder="Beschreibung (optional)" />
+      </div>
+      <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:8px">
         <button class="btn-analyze" id="saveBelegBtn" onclick="saveBeleg()" style="background:var(--success)">
           <span class="spinner"></span><span class="btn-label">✓ Speichern</span>
         </button>
-        <button class="btn-analyze" onclick="discardUpload()" style="background:transparent;color:var(--accent);border:1px solid #f0c0b8;margin-top:8px">Verwerfen</button>
+        <button class="btn-analyze" onclick="discardUpload()" style="background:transparent;color:var(--accent);border:1px solid #f0c0b8">Verwerfen</button>
       </div>
     </div>
 
@@ -1174,18 +1193,13 @@ Rules:
   }
 
   function renderResult(r) {
-    document.getElementById('resultMerchant').textContent = r.merchant || 'Unbekannt';
-    document.getElementById('resultTotal').textContent = (r.total != null ? r.total.toFixed(2) : '—') + (r.currency ? ' ' + r.currency : '');
-    document.getElementById('resultCurrency').textContent = r.currency || '—';
-    document.getElementById('resultDate').textContent = r.date || '—';
-    document.getElementById('resultAddress').textContent = r.address || r.city || '—';
-    const badge = document.getElementById('countryBadge');
-    if (r.country_code === 'CH' || r.is_switzerland) { badge.textContent = '🇨🇭 Schweiz'; badge.className = 'badge badge-ch'; }
-    else if (['DE','AT','FR','IT','ES','NL','BE'].includes(r.country_code)) { badge.textContent = '🇪🇺 ' + (r.country || r.country_code); badge.className = 'badge badge-eu'; }
-    else { badge.textContent = r.country || r.country_code || 'Unbekannt'; badge.className = 'badge badge-other'; }
-    const vatEl = document.getElementById('resultVAT');
-    if (r.is_switzerland && r.vat_amount != null) { vatEl.textContent = r.vat_amount.toFixed(2) + ' ' + r.currency + ' (' + r.vat_rate + '%)'; vatEl.className = 'cell-value vat'; }
-    else { vatEl.textContent = r.is_switzerland ? 'Nicht berechenbar' : 'Nicht Schweiz'; vatEl.className = 'cell-value muted'; }
+    document.getElementById('resultMerchant').value = r.merchant || '';
+    document.getElementById('resultTotal').value = r.total != null ? r.total.toFixed(2) : '';
+    document.getElementById('resultCurrency').value = r.currency || 'CHF';
+    document.getElementById('resultDate').value = r.date || '';
+    document.getElementById('resultAddress').value = r.address || r.city || '';
+    document.getElementById('resultVatAmount').value = r.vat_amount != null ? r.vat_amount.toFixed(2) : '';
+    document.getElementById('resultVatRate').value = r.vat_rate != null ? r.vat_rate : '';
     if (r.items && r.items.length > 0) {
       document.getElementById('itemsSection').style.display = 'block';
       document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
@@ -1232,17 +1246,20 @@ Rules:
       if (!uploadRes.ok) throw new Error('Upload ' + uploadRes.status + ': ' + (uploadData.error || JSON.stringify(uploadData)));
       const publicUrl = uploadData.publicUrl;
 
+      const saveAmount = document.getElementById('resultTotal').value;
+      const saveVatAmt = document.getElementById('resultVatAmount').value;
+      const saveVatRate = document.getElementById('resultVatRate').value;
       const { error } = await sb.from('belege').insert({
         user_id: currentUser.id,
-        merchant: currentResult.merchant || null,
-        date: currentResult.date || null,
-        amount: currentResult.total ?? null,
-        currency: currentResult.currency || null,
-        vat_amount: currentResult.vat_amount ?? null,
-        vat_rate: currentResult.vat_rate ?? null,
-        address: currentResult.address || currentResult.city || null,
-        items: currentResult.items?.length ? currentResult.items : null,
-        country_code: currentResult.country_code || null,
+        merchant: document.getElementById('resultMerchant').value.trim() || null,
+        date: document.getElementById('resultDate').value.trim() || null,
+        amount: saveAmount !== '' ? parseFloat(saveAmount) : null,
+        currency: document.getElementById('resultCurrency').value.trim() || null,
+        vat_amount: saveVatAmt !== '' ? parseFloat(saveVatAmt) : null,
+        vat_rate: saveVatRate !== '' ? parseFloat(saveVatRate) : null,
+        address: document.getElementById('resultAddress').value.trim() || null,
+        items: currentResult?.items?.length ? currentResult.items : null,
+        country_code: currentResult?.country_code || null,
         payment_method: document.getElementById('savePaymentMethod').value,
         category: document.getElementById('saveCategory').value,
         beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
