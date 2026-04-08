@@ -121,6 +121,7 @@ app.post('/api/admin/create-user', async (req, res) => {
       body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
     });
     const createData = await createRes.json();
+    console.log('create-user response:', createRes.status, JSON.stringify(createData));
     if (!createRes.ok) return res.status(createRes.status).json({ error: createData.msg || createData.message || JSON.stringify(createData) });
     const newUserId = createData.id;
     // Upsert profile (a DB trigger may have already created a row)
