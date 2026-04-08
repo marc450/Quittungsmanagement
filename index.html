@@ -285,6 +285,8 @@
     .upload-section { display: none; }
     .upload-section.mobile-visible { display: block; }
     .receipts-section { border-top: none; margin-top: 0; padding-top: 0; }
+    .receipts-header { display: none !important; }
+    header { margin-bottom: 12px; padding-bottom: 10px; }
 
     .drop-zone { padding: 28px 16px; }
     .drop-icon { font-size: 24px; }
@@ -795,7 +797,7 @@
       <div class="folders-bar" id="foldersBar"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
         <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:100px;padding:7px 10px;font-size:12px" />
-        <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:7px 10px;font-size:11px">
+        <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:7px 10px;font-size:12px;height:38px">
           <option value="date_desc">Datum ↓</option>
           <option value="date_asc">Datum ↑</option>
           <option value="amount_desc">Betrag ↓</option>
