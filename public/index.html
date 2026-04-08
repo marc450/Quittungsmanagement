@@ -412,7 +412,7 @@
 <div class="dialog-overlay" id="newFolderDialog">
   <div class="dialog-box" style="max-width:380px">
     <div class="dialog-body">
-      <div class="dialog-title">Neuer Ordner</div>
+      <div class="dialog-title">Neuer Einsatz</div>
       <input class="dialog-input" id="folderCustomer" type="text" placeholder="Kundenname" style="margin-top:12px" />
       <div style="display:flex;gap:8px;margin-top:8px">
         <input class="dialog-input" id="folderDateFrom" type="date" style="flex:1" />
@@ -535,10 +535,10 @@
         </div>
       </div>
       <div class="modal-field">
-        <div class="cell-label" style="margin-bottom:6px">Ordner</div>
+        <div class="cell-label" style="margin-bottom:6px">Einsatz</div>
         <div id="detailFolderDropdown" class="custom-dropdown">
           <div class="custom-dropdown-trigger" onclick="toggleDropdown('detailFolderDropdown')">
-            <span id="detailFolderLabel">— Kein Ordner —</span>
+            <span id="detailFolderLabel">— Kein Einsatz —</span>
             <span style="font-size:10px;opacity:0.5">▼</span>
           </div>
           <div class="custom-dropdown-menu" id="detailFolderMenu"></div>
@@ -551,7 +551,7 @@
       </div>
     </div>
     <div id="detailRemoveFromFolder" style="display:none;padding:0 20px 12px">
-      <button onclick="removeFromFolder()" style="width:100%;padding:9px;background:transparent;border:1px dashed var(--border);border-radius:3px;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↩ Aus Ordner entfernen</button>
+      <button onclick="removeFromFolder()" style="width:100%;padding:9px;background:transparent;border:1px dashed var(--border);border-radius:3px;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↩ Aus Einsatz entfernen</button>
     </div>
     <div class="modal-footer">
       <button class="btn-danger" onclick="deleteCurrentBeleg()">Löschen</button>
@@ -628,12 +628,12 @@
     <!-- Administration panel -->
     <div id="adminPanel" style="display:none">
       <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:28px">
-        <button class="tab-btn active" id="adminSubBelege" onclick="switchAdminSub('belege')" style="font-size:10px;padding:8px 16px">Belege &amp; Ordner</button>
+        <button class="tab-btn active" id="adminSubBelege" onclick="switchAdminSub('belege')" style="font-size:10px;padding:8px 16px">Belege &amp; Einsätze</button>
         <button class="tab-btn" id="adminSubRecon" onclick="switchAdminSub('recon')" style="font-size:10px;padding:8px 16px">KK-Abrechnung</button>
       </div>
       <div id="adminSubBelegePanel">
       <div class="admin-section">
-        <div class="admin-section-title">Belege &amp; Ordner nach Benutzer:in</div>
+        <div class="admin-section-title">Belege &amp; Einsätze nach Benutzer:in</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
           <select id="adminUserSelect" onchange="loadAdminBelege()" class="field-select" style="flex:1;min-width:180px">
             <option value="">— Benutzer:in wählen —</option>
@@ -805,7 +805,7 @@
       <div class="receipts-header">
         <div class="receipts-title" id="receiptsTitle">Belege</div>
         <div style="display:flex;align-items:center;gap:12px">
-          <button id="deleteFolderBtn" onclick="deleteCurrentFolder()" style="display:none;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:none;border:1px solid #f0c0b8;border-radius:3px;padding:4px 10px;cursor:pointer">Ordner löschen</button>
+          <button id="deleteFolderBtn" onclick="deleteCurrentFolder()" style="display:none;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:none;border:1px solid #f0c0b8;border-radius:3px;padding:4px 10px;cursor:pointer">Einsatz löschen</button>
           <div class="receipts-count" id="receiptsCount">0 Belege</div>
         </div>
       </div>
@@ -839,7 +839,7 @@
           </div>
           <div class="custom-dropdown-menu" id="folderDropdownMenu"></div>
         </div>
-        <button class="btn-new-folder" onclick="promptCreateFolder()" style="border-radius:3px;padding:8px 14px;white-space:nowrap">+ Neuer Ordner</button>
+        <button class="btn-new-folder" onclick="promptCreateFolder()" style="border-radius:3px;padding:8px 14px;white-space:nowrap">+ Neuer Einsatz</button>
       </div>
       <div class="folders-bar" id="foldersBar"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
@@ -1353,7 +1353,7 @@ Rules:
         `<div class="folder-chip" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropOnFolder(event,'${f.id}')">
           📁 <span>${esc(f.name)}</span>
         </div>`
-      ).join('') + `<div class="folder-chip" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropOnFolder(event,null)">↩ Aus Ordner</div>`;
+      ).join('') + `<div class="folder-chip" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropOnFolder(event,null)">↩ Aus Einsatz</div>`;
     }
 
     // Update header title and delete button visibility
@@ -1386,7 +1386,7 @@ Rules:
       const p = f ? parseFolderNameParts(f.name) : null;
       label.textContent = p ? `📁 ${p.customer}` : '—';
     } else {
-      label.textContent = '— Kein Ordner —';
+      label.textContent = '— Kein Einsatz —';
     }
   }
 
@@ -1462,7 +1462,7 @@ Rules:
   }
 
   async function deleteFolder(id) {
-    if (!await nativeConfirm('Belege bleiben erhalten.', 'Ordner löschen?')) return;
+    if (!await nativeConfirm('Belege bleiben erhalten.', 'Einsatz löschen?')) return;
     const { error } = await sb.from('folders').delete().eq('id', id);
     if (error) { showError('Fehler: ' + error.message); return; }
     folders = folders.filter(f => f.id !== id);
@@ -1523,7 +1523,7 @@ Rules:
     document.getElementById('receiptsCount').textContent = filtered.length + ' Beleg' + (filtered.length !== 1 ? 'e' : '');
     updateKpiBar(filtered);
     if (filtered.length === 0) {
-      el.innerHTML = '<div class="receipts-empty">Keine Belege in diesem Ordner</div>';
+      el.innerHTML = '<div class="receipts-empty">Keine Belege in diesem Einsatz</div>';
       return;
     }
     el.innerHTML = filtered.map(b => `
@@ -1588,7 +1588,7 @@ Rules:
     document.getElementById('detailFolder').value = detailBeleg.folder_id || '';
     const detailFolderMenu = document.getElementById('detailFolderMenu');
     detailFolderMenu.innerHTML = `<div class="custom-dropdown-item ${!detailBeleg.folder_id?'active':''}" onclick="selectDetailFolder(null)">
-        <div class="folder-name">— Kein Ordner —</div>
+        <div class="folder-name">— Kein Einsatz —</div>
       </div>` +
       folders.map(f => {
         const p = parseFolderNameParts(f.name);
@@ -1598,7 +1598,7 @@ Rules:
         </div>`;
       }).join('');
     const activeDetailFolder = detailBeleg.folder_id ? folders.find(f => f.id === detailBeleg.folder_id) : null;
-    document.getElementById('detailFolderLabel').textContent = activeDetailFolder ? `📁 ${parseFolderNameParts(activeDetailFolder.name).customer}` : '— Kein Ordner —';
+    document.getElementById('detailFolderLabel').textContent = activeDetailFolder ? `📁 ${parseFolderNameParts(activeDetailFolder.name).customer}` : '— Kein Einsatz —';
     document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || '';
     document.getElementById('detailCategory').value = detailBeleg.category || '';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
@@ -1869,7 +1869,7 @@ Rules:
   }
 
   async function adminDeleteUser(userId, name) {
-    if (!await nativeConfirm(`"${name}" unwiderruflich löschen? Alle Belege und Ordner werden entfernt.`, 'Benutzer:in löschen')) return;
+    if (!await nativeConfirm(`"${name}" unwiderruflich löschen? Alle Belege und Einsätze werden entfernt.`, 'Benutzer:in löschen')) return;
     const auth = await getAdminAuthHeader();
     const res = await fetch('/api/admin/delete-user', {
       method: 'DELETE',
@@ -2001,7 +2001,7 @@ Rules:
     }
 
     container.innerHTML = `<table class="admin-belege-table">
-      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlungsart</th><th>Kategorie</th><th>Ordner</th></tr></thead>
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlungsart</th><th>Kategorie</th><th>Einsatz</th></tr></thead>
       <tbody>${filtered.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
@@ -2223,7 +2223,7 @@ Rules:
     }
 
     container.innerHTML = bannerHtml + `<table class="admin-belege-table">
-      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Ordner</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Einsatz</th><th></th></tr></thead>
       <tbody>${available.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
         <td>${esc(b.merchant||'—')}</td>
