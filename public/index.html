@@ -95,6 +95,7 @@
   .save-form { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--accent-light); }
   .save-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .field-select, .field-input { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 3px; font-family: var(--mono); font-size: 12px; background: white; outline: none; transition: border-color 0.15s; }
+  .field-select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8070'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
   .field-select:focus, .field-input:focus { border-color: var(--ink); }
 
   /* Error */
@@ -133,9 +134,9 @@
 
   /* Inline badges */
   .pm-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
-  .pm-bar { background: #e8f5e9; color: #2d7d46; }
-  .pm-maestro { background: #e3f2fd; color: #1565c0; }
-  .pm-kk { background: #fce4ec; color: #c62828; }
+  .pm-kreditkarte { background: #fce4ec; color: #c62828; }
+  .pm-barzahlung { background: #e8f5e9; color: #2d7d46; }
+  .pm-privatauslage { background: #e3f2fd; color: #1565c0; }
   .cat-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; background: #f3e5f5; color: #6a1b9a; }
 
   /* Detail modal */
@@ -770,17 +771,22 @@
         <div>
           <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
           <select id="savePaymentMethod" class="field-select">
-            <option value="Bar">Bar</option>
-            <option value="Maestro">Maestro</option>
-            <option value="KK">Kreditkarte (KK)</option>
+            <option value="">— Wählen —</option>
+            <option value="Kreditkarte">Kreditkarte</option>
+            <option value="Barzahlung">Barzahlung</option>
+            <option value="Privatauslage">Privatauslage</option>
           </select>
         </div>
         <div>
           <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
           <select id="saveCategory" class="field-select">
-            <option value="Barauslage">Barauslage</option>
-            <option value="Essen Privat">Essen Privat</option>
-            <option value="Essen Firma">Essen Firma</option>
+            <option value="">— Wählen —</option>
+            <option value="Verpflegung">Verpflegung</option>
+            <option value="Transport & Flüge">Transport & Flüge</option>
+            <option value="Unterkunft">Unterkunft</option>
+            <option value="Material / Einkauf">Material / Einkauf</option>
+            <option value="Geschenke">Geschenke</option>
+            <option value="Sonstiges">Sonstiges</option>
           </select>
         </div>
       </div>
@@ -1211,8 +1217,8 @@ Rules:
     document.getElementById('cropDoneNote').style.display = 'none';
     document.getElementById('resultCard').classList.add('visible');
     document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'nearest'});
-    document.getElementById('savePaymentMethod').value = 'Bar';
-    document.getElementById('saveCategory').value = 'Barauslage';
+    document.getElementById('savePaymentMethod').value = '';
+    document.getElementById('saveCategory').value = '';
     document.getElementById('saveBeschreibung').value = '';
   }
 
@@ -1225,6 +1231,8 @@ Rules:
 
   async function saveBeleg() {
     if (!currentResult || !currentUser) return;
+    if (!document.getElementById('savePaymentMethod').value) { showError('Bitte Zahlungsart wählen.'); return; }
+    if (!document.getElementById('saveCategory').value) { showError('Bitte Kategorie wählen.'); return; }
     const btn = document.getElementById('saveBelegBtn');
     btn.classList.add('loading'); btn.disabled = true;
 
@@ -1591,8 +1599,8 @@ Rules:
       }).join('');
     const activeDetailFolder = detailBeleg.folder_id ? folders.find(f => f.id === detailBeleg.folder_id) : null;
     document.getElementById('detailFolderLabel').textContent = activeDetailFolder ? `📁 ${parseFolderNameParts(activeDetailFolder.name).customer}` : '— Kein Ordner —';
-    document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || 'Bar';
-    document.getElementById('detailCategory').value = detailBeleg.category || 'Barauslage';
+    document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || '';
+    document.getElementById('detailCategory').value = detailBeleg.category || '';
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
     document.getElementById('detailRemoveFromFolder').style.display = detailBeleg.folder_id ? 'block' : 'none';
     document.getElementById('detailModal').classList.add('active');
@@ -1619,6 +1627,8 @@ Rules:
 
   async function saveDetailChanges() {
     if (!detailBeleg) return;
+    if (!document.getElementById('detailPaymentMethod').value) { showError('Bitte Zahlungsart wählen.'); return; }
+    if (!document.getElementById('detailCategory').value) { showError('Bitte Kategorie wählen.'); return; }
     const amount = document.getElementById('detailAmount').value;
     const { error } = await sb.from('belege').update({
       merchant: document.getElementById('detailMerchant').value.trim() || null,
