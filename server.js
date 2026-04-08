@@ -141,6 +141,67 @@ app.post('/api/admin/create-user', async (req, res) => {
   }
 });
 
+// POST /api/admin/parse-statement
+app.post('/api/admin/parse-statement', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  const { images } = req.body; // array of { base64, media_type }
+  if (!images || !images.length) return res.status(400).json({ error: 'No images' });
+  try {
+    const allTransactions = [];
+    for (const img of images) {
+      const payload = {
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: img.media_type || "image/png", data: img.base64 } },
+          { type: "text", text: `You are a credit card statement parser. Extract ALL transaction lines from this bank statement image.
+
+Return ONLY a raw JSON array — no markdown, no explanation, no code fences. Start with [ and end with ].
+
+Each transaction object must have:
+{"date":"DD.MM.YYYY","merchant":"string","amount_chf":number,"currency_original":"string","amount_original":number_or_null,"is_fee":false}
+
+Rules:
+- date: the transaction date (first date column), convert YY to full year (e.g. 26 → 2026)
+- merchant: the merchant/vendor name (first line of the detail text)
+- amount_chf: the CHF amount (rightmost column). This is the key matching field.
+- currency_original: original transaction currency (EUR, USD, CHF, etc.)
+- amount_original: amount in original currency if different from CHF, null if same
+- is_fee: true ONLY for "Bearbeitungsgebühr" fee lines, false for all real transactions
+- Skip header rows, subtotals, and summary lines (like "Übertrag Karte", "Total Karte")
+- Each real purchase/payment is one entry. Do NOT merge multiple transactions.
+- If a transaction has a currency conversion line below it, that's part of the same transaction — do not create a separate entry for the conversion line.` }
+        ]}]
+      };
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
+      const text = (data.content || []).map(b => b.text || '').join('').trim();
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        allTransactions.push(...parsed);
+      }
+    }
+    // Filter out fee lines
+    const transactions = allTransactions.filter(t => !t.is_fee);
+    res.json({ transactions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/admin/delete-user
 app.delete('/api/admin/delete-user', async (req, res) => {
   const adminId = await verifyAdmin(req.headers.authorization);

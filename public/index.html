@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -210,6 +211,17 @@
   .admin-belege-table tr:last-child td { border-bottom: none; }
   .admin-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); }
   .admin-empty { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; }
+  .recon-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 6px; background: white; font-size: 12px; }
+  .recon-row.matched { border-left: 3px solid var(--success); }
+  .recon-row.unmatched { border-left: 3px solid var(--accent); background: #fffaf8; }
+  .recon-arrow { color: var(--muted); font-size: 14px; }
+  .recon-left { min-width: 0; }
+  .recon-right { min-width: 0; display: flex; align-items: center; gap: 8px; }
+  .recon-merchant { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recon-date { color: var(--muted); font-size: 11px; }
+  .recon-amount { font-family: var(--serif); font-size: 15px; white-space: nowrap; }
+  .recon-match-info { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recon-match-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); flex-shrink: 0; }
 
   /* Cropper */
   .cropper-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: #111; flex-direction: column; }
@@ -515,6 +527,42 @@
         <div id="adminBelegeContainer">
           <div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Belege zu sehen</div>
         </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
+          <select id="reconUserSelect" class="field-select" style="flex:1;min-width:180px">
+            <option value="">— Benutzer:in wählen —</option>
+          </select>
+          <div style="position:relative">
+            <input type="file" id="statementFileInput" accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" />
+            <button class="btn-analyze" style="font-size:11px;padding:8px 16px;pointer-events:none">PDF hochladen</button>
+          </div>
+        </div>
+        <div id="reconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
+            <span id="reconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
+          </div>
+        </div>
+        <div id="reconSummary" style="display:none;margin-bottom:20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
+              <div style="font-family:var(--serif);font-size:20px" id="reconTotalCount">0</div>
+            </div>
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
+              <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="reconMatchedCount">0</div>
+            </div>
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
+              <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="reconUnmatchedCount">0</div>
+            </div>
+          </div>
+        </div>
+        <div id="reconResults"></div>
       </div>
     </div>
 
@@ -1433,6 +1481,188 @@ Rules:
       </tr>`).join('')}</tbody>
     </table>`;
   }
+
+  // ---- Reconciliation ----
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  function populateReconUserSelect() {
+    const sel = document.getElementById('reconUserSelect');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Benutzer:in wählen —</option>' +
+      adminUsers.map(u => `<option value="${u.id}" ${u.id === cur ? 'selected' : ''}>${esc(u.full_name || u.email)}</option>`).join('');
+  }
+
+  document.getElementById('statementFileInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const userId = document.getElementById('reconUserSelect').value;
+    if (!userId) { showError('Bitte zuerst Benutzer:in wählen.'); e.target.value = ''; return; }
+    await runReconciliation(file, userId);
+    e.target.value = '';
+  });
+
+  async function pdfToImages(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+      images.push({ base64: dataUrl.split(',')[1], media_type: 'image/png' });
+    }
+    return images;
+  }
+
+  function normalizeDate(dateStr) {
+    if (!dateStr) return null;
+    const s = dateStr.trim();
+    // DD.MM.YYYY
+    let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+    // DD.MM.YY
+    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
+    if (m) return new Date(2000 + +m[3], +m[2]-1, +m[1]);
+    // YYYY-MM-DD
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+    // Try native parse
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+
+  function daysDiff(a, b) {
+    if (!a || !b) return Infinity;
+    return Math.abs(Math.round((a - b) / 86400000));
+  }
+
+  function matchTransactions(transactions, belege) {
+    const results = [];
+    const usedBelege = new Set();
+
+    for (const tx of transactions) {
+      const txDate = normalizeDate(tx.date);
+      const txAmount = Math.round(tx.amount_chf * 100);
+      let bestMatch = null, bestDays = Infinity;
+
+      for (const b of belege) {
+        if (usedBelege.has(b.id)) continue;
+        const bAmount = Math.round((Number(b.amount) || 0) * 100);
+        if (bAmount !== txAmount) continue;
+        const bDate = normalizeDate(b.date);
+        const diff = daysDiff(txDate, bDate);
+        if (diff <= 3 && diff < bestDays) {
+          bestDays = diff;
+          bestMatch = b;
+        }
+      }
+
+      if (bestMatch) {
+        usedBelege.add(bestMatch.id);
+        results.push({ tx, beleg: bestMatch, status: 'matched' });
+      } else {
+        results.push({ tx, beleg: null, status: 'unmatched' });
+      }
+    }
+
+    return results;
+  }
+
+  async function runReconciliation(file, userId) {
+    const statusEl = document.getElementById('reconStatus');
+    const statusText = document.getElementById('reconStatusText');
+    const summaryEl = document.getElementById('reconSummary');
+    const resultsEl = document.getElementById('reconResults');
+    statusEl.style.display = 'block';
+    summaryEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+
+    try {
+      // Step 1: Convert PDF to images
+      statusText.textContent = 'PDF wird konvertiert…';
+      const images = await pdfToImages(file);
+
+      // Step 2: Parse with Claude
+      statusText.textContent = `${images.length} Seite(n) werden analysiert…`;
+      const auth = await getAdminAuthHeader();
+      const parseRes = await fetch('/api/admin/parse-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+        body: JSON.stringify({ images }),
+      });
+      if (!parseRes.ok) { const d = await parseRes.json(); throw new Error(d.error || 'Parse-Fehler'); }
+      const { transactions } = await parseRes.json();
+
+      // Step 3: Fetch belege for user
+      statusText.textContent = 'Belege werden geladen…';
+      const [belegeRes, foldersRes] = await Promise.all([
+        fetch(`/api/admin/belege?userId=${userId}`, { headers: { 'Authorization': auth } }),
+        fetch(`/api/admin/folders?userId=${userId}`, { headers: { 'Authorization': auth } }),
+      ]);
+      const userBelege = belegeRes.ok ? await belegeRes.json() : [];
+      const userFolders = foldersRes.ok ? await foldersRes.json() : [];
+      const folderMap = Object.fromEntries(userFolders.map(f => [f.id, f.name]));
+
+      // Step 4: Match
+      statusText.textContent = 'Abgleich läuft…';
+      const results = matchTransactions(transactions, userBelege);
+
+      // Step 5: Render
+      statusEl.style.display = 'none';
+      const matched = results.filter(r => r.status === 'matched').length;
+      const unmatched = results.filter(r => r.status === 'unmatched').length;
+      document.getElementById('reconTotalCount').textContent = results.length;
+      document.getElementById('reconMatchedCount').textContent = matched;
+      document.getElementById('reconUnmatchedCount').textContent = unmatched;
+      summaryEl.style.display = 'block';
+
+      if (!results.length) {
+        resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
+        return;
+      }
+
+      resultsEl.innerHTML = results.map(r => {
+        const tx = r.tx;
+        const b = r.beleg;
+        const isMatched = r.status === 'matched';
+        const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
+        return `<div class="recon-row ${isMatched ? 'matched' : 'unmatched'}">
+          <div class="recon-left">
+            <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
+            <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? tx.amount_original.toFixed(2) : '') : ''}</div>
+          </div>
+          <div style="text-align:center">
+            <div class="recon-amount">${tx.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF</div>
+            <div class="recon-arrow">${isMatched ? '✅' : '⚠️'}</div>
+          </div>
+          <div class="recon-right">
+            ${isMatched ? `
+              <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
+              <div>
+                <div class="recon-merchant">${esc(b.merchant||'—')}</div>
+                <div class="recon-match-info">${esc(b.date||'—')}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
+              </div>
+            ` : `<div class="recon-match-info" style="color:var(--accent)">Keine Quittung gefunden</div>`}
+          </div>
+        </div>`;
+      }).join('');
+
+    } catch (err) {
+      statusEl.style.display = 'none';
+      resultsEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Fehler: ${esc(err.message)}</div>`;
+    }
+  }
+
+  // Hook into admin user loading to populate recon dropdown
+  const _origRenderAdminUserSelect = renderAdminUserSelect;
+  renderAdminUserSelect = function() {
+    _origRenderAdminUserSelect();
+    populateReconUserSelect();
+  };
 
   init();
 </script>
