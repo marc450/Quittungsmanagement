@@ -110,29 +110,34 @@ app.post('/api/admin/create-user', async (req, res) => {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const { email, password, name, role } = req.body;
   if (!email || !password || !name) return res.status(400).json({ error: 'Missing fields' });
-  const createRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${serviceKey}`,
-      'apikey': serviceKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
-  });
-  const createData = await createRes.json();
-  if (!createRes.ok) return res.status(createRes.status).json({ error: createData.message || JSON.stringify(createData) });
-  const newUserId = createData.id;
-  await fetch(`${process.env.SUPABASE_URL}/rest/v1/profiles`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${serviceKey}`,
-      'apikey': serviceKey,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({ id: newUserId, name, email, role: role || 'user' }),
-  });
-  res.json({ success: true, userId: newUserId });
+  try {
+    const createRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok) return res.status(createRes.status).json({ error: createData.msg || createData.message || JSON.stringify(createData) });
+    const newUserId = createData.id;
+    // Upsert profile (a DB trigger may have already created a row)
+    await fetch(`${process.env.SUPABASE_URL}/rest/v1/profiles?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ id: newUserId, name, email, role: role || 'user' }),
+    });
+    res.json({ success: true, userId: newUserId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/upload-image
