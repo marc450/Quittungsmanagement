@@ -1240,8 +1240,8 @@ Rules:
 
   async function saveBeleg() {
     if (!currentResult || !currentUser) return;
-    if (!document.getElementById('savePaymentMethod').value) { showError('Bitte Zahlungsart wählen.'); return; }
-    if (!document.getElementById('saveCategory').value) { showError('Bitte Kategorie wählen.'); return; }
+    if (!document.getElementById('savePaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
+    if (!document.getElementById('saveCategory').value) { nativeConfirm('Bitte Kategorie wählen.', 'Pflichtfeld'); return; }
     const btn = document.getElementById('saveBelegBtn');
     btn.classList.add('loading'); btn.disabled = true;
 
@@ -1636,8 +1636,8 @@ Rules:
 
   async function saveDetailChanges() {
     if (!detailBeleg) return;
-    if (!document.getElementById('detailPaymentMethod').value) { showError('Bitte Zahlungsart wählen.'); return; }
-    if (!document.getElementById('detailCategory').value) { showError('Bitte Kategorie wählen.'); return; }
+    if (!document.getElementById('detailPaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
+    if (!document.getElementById('detailCategory').value) { nativeConfirm('Bitte Kategorie wählen.', 'Pflichtfeld'); return; }
     const amount = document.getElementById('detailAmount').value;
     const { error } = await sb.from('belege').update({
       merchant: document.getElementById('detailMerchant').value.trim() || null,
