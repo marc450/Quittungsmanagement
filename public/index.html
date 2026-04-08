@@ -331,6 +331,25 @@
   </div>
 </div>
 
+<!-- New folder dialog -->
+<div class="dialog-overlay" id="newFolderDialog">
+  <div class="dialog-box" style="max-width:380px">
+    <div class="dialog-body">
+      <div class="dialog-title">Neue Mappe</div>
+      <input class="dialog-input" id="folderCustomer" type="text" placeholder="Kundenname" style="margin-top:12px" />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="dialog-input" id="folderDateFrom" type="date" style="flex:1" />
+        <span style="align-self:center;color:var(--muted);font-size:12px">bis</span>
+        <input class="dialog-input" id="folderDateTo" type="date" style="flex:1" />
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel" id="newFolderCancel">Abbrechen</button>
+      <button class="dialog-confirm" id="newFolderOk">Erstellen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Native prompt dialog -->
 <div class="dialog-overlay" id="promptDialog">
   <div class="dialog-box">
@@ -1107,14 +1126,45 @@ Rules:
     renderBelegeList();
   }
 
-  async function promptCreateFolder() {
-    const name = await nativePrompt('Mappenname', 'z.B. Geschäftsreise Mai');
-    if (!name) return;
-    const { data, error } = await sb.from('folders').insert({ user_id: currentUser.id, name: name.trim() }).select().single();
-    if (error) { showError('Fehler: ' + error.message); return; }
-    folders.push(data);
-    renderFolders();
+  function promptCreateFolder() {
+    document.getElementById('folderCustomer').value = '';
+    document.getElementById('folderDateFrom').value = '';
+    document.getElementById('folderDateTo').value = '';
+    document.getElementById('newFolderDialog').classList.add('active');
+    document.getElementById('folderCustomer').focus();
   }
+
+  (function() {
+    const overlay = document.getElementById('newFolderDialog');
+    const ok = document.getElementById('newFolderOk');
+    const cancel = document.getElementById('newFolderCancel');
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const [y, m, d] = iso.split('-');
+      return `${d}.${m}.${y}`;
+    }
+
+    async function doCreate() {
+      const customer = document.getElementById('folderCustomer').value.trim();
+      const from = document.getElementById('folderDateFrom').value;
+      const to = document.getElementById('folderDateTo').value;
+      if (!customer) { document.getElementById('folderCustomer').focus(); return; }
+      if (!from || !to) return;
+      const name = `${customer} ${formatDate(from)} – ${formatDate(to)}`;
+      ok.disabled = true; ok.textContent = '…';
+      const { data, error } = await sb.from('folders').insert({ user_id: currentUser.id, name }).select().single();
+      ok.disabled = false; ok.textContent = 'Erstellen';
+      if (error) { showError('Fehler: ' + error.message); overlay.classList.remove('active'); return; }
+      folders.push(data);
+      renderFolders();
+      overlay.classList.remove('active');
+    }
+
+    ok.addEventListener('click', doCreate);
+    cancel.addEventListener('click', () => overlay.classList.remove('active'));
+    document.getElementById('folderDateTo').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+  })();
 
   async function deleteCurrentFolder() {
     if (currentFolderId) await deleteFolder(currentFolderId);
