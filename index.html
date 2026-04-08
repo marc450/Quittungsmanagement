@@ -248,38 +248,59 @@
   .btn-crop-confirm { flex: 2; padding: 13px; background: var(--accent); border: none; color: #fff; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
 
   @media (max-width: 600px) {
-    .wrap { padding: 20px 16px; }
-    header { flex-direction: row; align-items: center; margin-bottom: 28px; padding-bottom: 16px; }
+    .wrap { padding: 16px 12px; }
+    header { flex-direction: row; align-items: center; margin-bottom: 20px; padding-bottom: 12px; gap: 8px; }
     .header-user { display: none; }
-    .logo { font-size: 22px; }
+    .logo { font-size: 20px; }
+    .header-right { gap: 8px; }
+    .btn-logout { font-size: 10px; padding: 6px 10px; }
 
-    .drop-zone { padding: 32px 20px; }
+    .drop-zone { padding: 28px 16px; }
+    .drop-icon { font-size: 24px; }
+    .drop-text { font-size: 12px; }
 
     .preview-area.visible { flex-direction: column; }
-    .preview-img { width: 100%; min-width: unset; max-height: 240px; }
-    .btn-analyze { width: 100%; justify-content: center; }
+    .preview-img { width: 100%; min-width: unset; max-height: 200px; }
+    .btn-analyze { width: 100%; justify-content: center; padding: 12px 16px; }
 
     .result-grid { grid-template-columns: 1fr; }
     .result-cell { border-right: none; }
     .result-cell:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
     .result-cell:last-child { border-bottom: none; }
     .save-form-grid { grid-template-columns: 1fr; }
+    .btn-analyze#saveBelegBtn { width: 100%; }
 
-    .receipts-section { margin-top: 32px; padding-top: 24px; }
-    .receipt-row { grid-template-columns: 56px 1fr auto; gap: 12px; padding: 10px 12px; }
+    .receipts-section { margin-top: 24px; padding-top: 20px; }
+    .receipts-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .receipt-row { grid-template-columns: 48px 1fr auto; gap: 10px; padding: 10px; }
     .receipt-status { display: none; }
     .btn-remove { display: flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; font-size: 18px; }
-    .receipt-total { font-size: 15px; }
-    .receipt-thumb { width: 56px; height: 56px; }
+    .receipt-total { font-size: 14px; }
+    .receipt-thumb { width: 48px; height: 48px; }
+    .receipt-info .merchant { font-size: 12px; }
+    .receipt-info .date-loc { font-size: 10px; }
+
+    /* Folder chips: hide on mobile (use dropdown instead) */
+    .folders-bar { display: none !important; }
 
     .login-card { padding: 28px 20px; }
     .login-field input { font-size: 16px; }
 
-    .modal-overlay { padding: 0; align-items: flex-end; }
-    .modal-card { border-radius: 16px 16px 0 0; max-height: 95vh; }
+    /* All dialog overlays: bottom-sheet on mobile */
+    .modal-overlay, .dialog-overlay { padding: 0; align-items: flex-end; }
+    .modal-card, .dialog-box { border-radius: 16px 16px 0 0; max-width: 100%; }
+    .modal-card { max-height: 92vh; }
     .modal-info-grid { grid-template-columns: 1fr; }
 
-    .folder-chip, .btn-new-folder { padding: 8px 16px; font-size: 12px; min-height: 36px; }
+    /* Dialog inputs: prevent iOS zoom */
+    .dialog-input, .field-input, .field-select { font-size: 16px; }
+
+    /* Summary bar */
+    .summary-bar { flex-direction: column; gap: 4px; padding: 12px 16px; }
+    .summary-value { font-size: 20px; }
+
+    /* New folder dialog date inputs */
+    #newFolderDialog .dialog-box { max-width: 100%; }
   }
 </style>
 </head>
@@ -694,9 +715,15 @@
           <div class="receipts-count" id="receiptsCount">0 Belege</div>
         </div>
       </div>
+      <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px">
+        <select id="folderDropdown" class="field-select" onchange="filterByFolder(this.value||null)" style="flex:1;min-width:160px;padding:8px 10px;font-size:12px">
+          <option value="">Alle Belege</option>
+        </select>
+        <button class="btn-new-folder" onclick="promptCreateFolder()" style="border-radius:3px;padding:8px 14px;white-space:nowrap">+ Neuer Ordner</button>
+      </div>
       <div class="folders-bar" id="foldersBar"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-        <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:140px;padding:7px 10px;font-size:12px" />
+        <input type="text" id="belegeFilter" class="field-input" placeholder="Suchen…" oninput="renderBelegeList()" style="flex:1;min-width:100px;padding:7px 10px;font-size:12px" />
         <select id="belegeSort" class="field-select" onchange="renderBelegeList()" style="width:auto;padding:7px 10px;font-size:11px">
           <option value="date_desc">Datum ↓</option>
           <option value="date_asc">Datum ↑</option>
@@ -1129,32 +1156,26 @@ Rules:
   }
 
   function renderFolders() {
+    // Populate dropdown (used on all screens)
+    const dd = document.getElementById('folderDropdown');
+    if (dd) {
+      const allCount = belege.length;
+      dd.innerHTML = `<option value="" ${currentFolderId===null?'selected':''}>Alle Belege (${allCount})</option>` +
+        folders.map(f => {
+          const count = belege.filter(b => b.folder_id === f.id).length;
+          return `<option value="${f.id}" ${currentFolderId===f.id?'selected':''}>📁 ${esc(f.name)} (${count})</option>`;
+        }).join('');
+    }
+
+    // Render drag-and-drop chips (desktop only, hidden on mobile via CSS)
     const el = document.getElementById('foldersBar');
-    if (!el) return;
-    const allCount = belege.length;
-    const chips = folders.map(f => {
-      const count = belege.filter(b => b.folder_id === f.id).length;
-      const active = currentFolderId === f.id ? 'active' : '';
-      return `<div class="folder-chip ${active}" onclick="filterByFolder('${f.id}')"
-                   ondragover="event.preventDefault()"
-                   ondragenter="this.classList.add('drag-over')"
-                   ondragleave="this.classList.remove('drag-over')"
-                   ondrop="dropOnFolder(event,'${f.id}')">
-        📁 <span>${esc(f.name)}</span>
-        <span class="folder-chip-count">${count}</span>
-      </div>`;
-    }).join('');
-    const allActive = currentFolderId === null ? 'active' : '';
-    el.innerHTML = `
-      <div class="folder-chip ${allActive}" onclick="filterByFolder(null)"
-           ondragover="event.preventDefault()"
-           ondragenter="this.classList.add('drag-over')"
-           ondragleave="this.classList.remove('drag-over')"
-           ondrop="dropOnFolder(event,null)">
-        Alle <span class="folder-chip-count">${allCount}</span>
-      </div>
-      ${chips}
-      <button class="btn-new-folder" onclick="promptCreateFolder()">+ Neuer Ordner</button>`;
+    if (el) {
+      el.innerHTML = folders.map(f =>
+        `<div class="folder-chip" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropOnFolder(event,'${f.id}')">
+          📁 <span>${esc(f.name)}</span>
+        </div>`
+      ).join('') + `<div class="folder-chip" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropOnFolder(event,null)">↩ Aus Ordner</div>`;
+    }
 
     // Update header title and delete button visibility
     const activeFolder = folders.find(f => f.id === currentFolderId);
@@ -1165,7 +1186,7 @@ Rules:
   }
 
   function filterByFolder(id) {
-    currentFolderId = id;
+    currentFolderId = id || null;
     renderFolders();
     renderBelegeList();
   }
