@@ -505,23 +505,25 @@
       </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
-        <select id="detailPaymentMethod" class="field-select">
-          <option value="">— Wählen —</option>
-          <option value="Kreditkarte">Kreditkarte</option>
-          <option value="Barzahlung">Barzahlung</option>
-          <option value="Privatauslage">Privatauslage</option>
-        </select>
+        <div class="custom-dropdown" id="detailPaymentMethodDD">
+          <div class="custom-dropdown-trigger" onclick="toggleDropdown('detailPaymentMethodDD')">
+            <span class="custom-dropdown-label">— Wählen —</span>
+            <span style="font-size:10px;opacity:0.5">▼</span>
+          </div>
+          <div class="custom-dropdown-menu"></div>
+        </div>
+        <input type="hidden" id="detailPaymentMethod" value="" />
       </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
-        <select id="detailCategory" class="field-select">
-          <option value="">— Wählen —</option>
-          <option value="Verpflegung">Verpflegung</option>
-          <option value="Transport & Flüge">Transport & Flüge</option>
-          <option value="Unterkunft">Unterkunft</option>
-          <option value="Material / Einkauf">Material / Einkauf</option>
-          <option value="Geschenke">Geschenke</option>
-          <option value="Sonstiges">Sonstiges</option>
+        <div class="custom-dropdown" id="detailCategoryDD">
+          <div class="custom-dropdown-trigger" onclick="toggleDropdown('detailCategoryDD')">
+            <span class="custom-dropdown-label">— Wählen —</span>
+            <span style="font-size:10px;opacity:0.5">▼</span>
+          </div>
+          <div class="custom-dropdown-menu"></div>
+        </div>
+        <input type="hidden" id="detailCategory" value="" />
         </select>
       </div>
       <div class="modal-field" id="detailItemsSection" style="display:none">
@@ -775,23 +777,25 @@
       <div style="padding:0 20px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div>
           <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
-          <select id="savePaymentMethod" class="field-select">
-            <option value="">— Wählen —</option>
-            <option value="Kreditkarte">Kreditkarte</option>
-            <option value="Barzahlung">Barzahlung</option>
-            <option value="Privatauslage">Privatauslage</option>
-          </select>
+          <div class="custom-dropdown" id="savePaymentMethodDD">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('savePaymentMethodDD')">
+              <span class="custom-dropdown-label">— Wählen —</span>
+              <span style="font-size:10px;opacity:0.5">▼</span>
+            </div>
+            <div class="custom-dropdown-menu"></div>
+          </div>
+          <input type="hidden" id="savePaymentMethod" value="" />
         </div>
         <div>
           <div class="cell-label" style="margin-bottom:6px">Kategorie</div>
-          <select id="saveCategory" class="field-select">
-            <option value="">— Wählen —</option>
-            <option value="Verpflegung">Verpflegung</option>
-            <option value="Transport & Flüge">Transport & Flüge</option>
-            <option value="Unterkunft">Unterkunft</option>
-            <option value="Material / Einkauf">Material / Einkauf</option>
-            <option value="Geschenke">Geschenke</option>
-            <option value="Sonstiges">Sonstiges</option>
+          <div class="custom-dropdown" id="saveCategoryDD">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('saveCategoryDD')">
+              <span class="custom-dropdown-label">— Wählen —</span>
+              <span style="font-size:10px;opacity:0.5">▼</span>
+            </div>
+            <div class="custom-dropdown-menu"></div>
+          </div>
+          <input type="hidden" id="saveCategory" value="" />
           </select>
         </div>
       </div>
@@ -1222,8 +1226,8 @@ Rules:
     document.getElementById('cropDoneNote').style.display = 'none';
     document.getElementById('resultCard').classList.add('visible');
     document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'nearest'});
-    document.getElementById('savePaymentMethod').value = '';
-    document.getElementById('saveCategory').value = '';
+    setCustomSelect('savePaymentMethodDD', 'savePaymentMethod', '');
+    setCustomSelect('saveCategoryDD', 'saveCategory', '');
     document.getElementById('saveBeschreibung').value = '';
   }
 
@@ -1604,8 +1608,8 @@ Rules:
       }).join('');
     const activeDetailFolder = detailBeleg.folder_id ? folders.find(f => f.id === detailBeleg.folder_id) : null;
     document.getElementById('detailFolderLabel').textContent = activeDetailFolder ? `📁 ${parseFolderNameParts(activeDetailFolder.name).customer}` : '— Kein Einsatz —';
-    document.getElementById('detailPaymentMethod').value = detailBeleg.payment_method || '';
-    document.getElementById('detailCategory').value = detailBeleg.category || '';
+    setCustomSelect('detailPaymentMethodDD', 'detailPaymentMethod', detailBeleg.payment_method || '');
+    setCustomSelect('detailCategoryDD', 'detailCategory', detailBeleg.category || '');
     document.getElementById('detailBeschreibung').value = detailBeleg.beschreibung || '';
     document.getElementById('detailRemoveFromFolder').style.display = detailBeleg.folder_id ? 'block' : 'none';
     document.getElementById('detailModal').classList.add('active');
@@ -1661,6 +1665,62 @@ Rules:
     closeDetail();
     await loadBelege();
   }
+
+  // Generic custom select dropdowns
+  const PAYMENT_OPTIONS = [
+    { value: 'Kreditkarte', label: 'Kreditkarte' },
+    { value: 'Barzahlung', label: 'Barzahlung' },
+    { value: 'Privatauslage', label: 'Privatauslage' },
+  ];
+  const CATEGORY_OPTIONS = [
+    { value: 'Verpflegung', label: 'Verpflegung' },
+    { value: 'Transport & Flüge', label: 'Transport & Flüge' },
+    { value: 'Unterkunft', label: 'Unterkunft' },
+    { value: 'Material / Einkauf', label: 'Material / Einkauf' },
+    { value: 'Geschenke', label: 'Geschenke' },
+    { value: 'Sonstiges', label: 'Sonstiges' },
+  ];
+
+  function initCustomSelect(ddId, hiddenId, options, placeholder = '— Wählen —') {
+    const dd = document.getElementById(ddId);
+    const hidden = document.getElementById(hiddenId);
+    const menu = dd.querySelector('.custom-dropdown-menu');
+    const label = dd.querySelector('.custom-dropdown-label');
+
+    function render() {
+      const cur = hidden.value;
+      label.textContent = cur ? (options.find(o => o.value === cur)?.label || cur) : placeholder;
+      menu.innerHTML = `<div class="custom-dropdown-item ${!cur?'active':''}" data-val="">
+          <div class="folder-name" style="color:var(--muted)">${esc(placeholder)}</div>
+        </div>` +
+        options.map(o => `<div class="custom-dropdown-item ${cur===o.value?'active':''}" data-val="${esc(o.value)}">
+          <div class="folder-name">${esc(o.label)}</div>
+        </div>`).join('');
+    }
+
+    menu.addEventListener('click', e => {
+      const item = e.target.closest('.custom-dropdown-item');
+      if (!item) return;
+      hidden.value = item.dataset.val || '';
+      dd.classList.remove('open');
+      render();
+    });
+
+    render();
+    // Expose render for external updates
+    dd._render = render;
+  }
+
+  function setCustomSelect(ddId, hiddenId, value) {
+    document.getElementById(hiddenId).value = value || '';
+    document.getElementById(ddId)._render?.();
+  }
+
+  // Init all 4 custom selects
+  initCustomSelect('savePaymentMethodDD', 'savePaymentMethod', PAYMENT_OPTIONS);
+  initCustomSelect('saveCategoryDD', 'saveCategory', CATEGORY_OPTIONS);
+  initCustomSelect('detailPaymentMethodDD', 'detailPaymentMethod', PAYMENT_OPTIONS);
+  initCustomSelect('detailCategoryDD', 'detailCategory', CATEGORY_OPTIONS);
 
   function toggleHamburger() {
     const menu = document.getElementById('hamburgerMenu');
