@@ -1546,13 +1546,21 @@ Rules:
 
     for (const tx of transactions) {
       const txDate = normalizeDate(tx.date);
-      const txAmount = Math.round(tx.amount_chf * 100);
+      const txAmountChf = Math.round(tx.amount_chf * 100);
+      const txAmountOrig = tx.amount_original != null ? Math.round(tx.amount_original * 100) : null;
+      const txCurrOrig = (tx.currency_original || '').toUpperCase();
       let bestMatch = null, bestDays = Infinity;
 
       for (const b of belege) {
         if (usedBelege.has(b.id)) continue;
         const bAmount = Math.round((Number(b.amount) || 0) * 100);
-        if (bAmount !== txAmount) continue;
+        const bCurrency = (b.currency || '').toUpperCase();
+
+        // Try matching: CHF amount vs CHF beleg, OR original currency amount vs same-currency beleg
+        const chfMatch = bAmount === txAmountChf;
+        const origMatch = txAmountOrig != null && txCurrOrig && bCurrency === txCurrOrig && bAmount === txAmountOrig;
+        if (!chfMatch && !origMatch) continue;
+
         const bDate = normalizeDate(b.date);
         const diff = daysDiff(txDate, bDate);
         if (diff <= 3 && diff < bestDays) {
