@@ -1440,7 +1440,7 @@ Rules:
       return;
     }
     el.innerHTML = filtered.map(b => `
-      <div class="receipt-row" draggable="true" ondragstart="startDrag(event,'${b.id}')" ondragend="this.classList.remove('dragging')" onmousedown="this.classList.add('dragging')" onmouseup="this.classList.remove('dragging')" onclick="openDetail('${b.id}')">
+      <div class="receipt-row" onclick="openDetail('${b.id}')" data-id="${b.id}">
         <img class="receipt-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.15'" />
         <div class="receipt-info">
           <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
@@ -1454,6 +1454,15 @@ Rules:
         <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
       </div>`).join('');
+
+    // Enable drag-and-drop only on desktop (no touch)
+    if (!('ontouchstart' in window)) {
+      el.querySelectorAll('.receipt-row[data-id]').forEach(row => {
+        row.draggable = true;
+        row.addEventListener('dragstart', e => { startDrag(e, row.dataset.id); row.classList.add('dragging'); });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      });
+    }
   }
 
   async function confirmDelete(id) {
