@@ -525,7 +525,7 @@
         <div class="cell-label" style="margin-bottom:6px">Adresse</div>
         <input type="text" id="detailAddress" class="field-input" placeholder="Geschäftsadresse" />
       </div>
-      <div class="modal-field">
+      <div class="modal-field" id="detailVatSection">
         <div class="cell-label" style="margin-bottom:6px">MwSt</div>
         <div style="display:flex;gap:6px">
           <input type="number" step="0.01" id="detailVatAmount" class="field-input" placeholder="Betrag" style="flex:1" />
@@ -747,7 +747,7 @@
         <div class="cell-label" style="margin-bottom:6px">Datum</div>
         <input type="text" id="resultDate" class="field-input" placeholder="TT.MM.JJJJ" />
       </div>
-      <div style="padding:0 20px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div id="resultVatSection" style="padding:0 20px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div>
           <div class="cell-label" style="margin-bottom:6px">MwSt Betrag</div>
           <input type="number" step="0.01" id="resultVatAmount" class="field-input" placeholder="0.00" />
@@ -1198,8 +1198,10 @@ Rules:
     document.getElementById('resultCurrency').value = r.currency || 'CHF';
     document.getElementById('resultDate').value = r.date || '';
     document.getElementById('resultAddress').value = r.address || r.city || '';
-    document.getElementById('resultVatAmount').value = r.vat_amount != null ? r.vat_amount.toFixed(2) : '';
-    document.getElementById('resultVatRate').value = r.vat_rate != null ? r.vat_rate : '';
+    const isCH = r.country_code === 'CH' || r.is_switzerland;
+    document.getElementById('resultVatSection').style.display = isCH ? 'grid' : 'none';
+    document.getElementById('resultVatAmount').value = isCH && r.vat_amount != null ? r.vat_amount.toFixed(2) : '';
+    document.getElementById('resultVatRate').value = isCH && r.vat_rate != null ? r.vat_rate : '';
     if (r.items && r.items.length > 0) {
       document.getElementById('itemsSection').style.display = 'block';
       document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
@@ -1569,6 +1571,8 @@ Rules:
       itemsSection.style.display = 'none';
     }
     document.getElementById('detailAddress').value = detailBeleg.address || '';
+    const detailIsCH = (detailBeleg.currency || '').toUpperCase() === 'CHF' || (detailBeleg.country_code || '').toUpperCase() === 'CH';
+    document.getElementById('detailVatSection').style.display = detailIsCH ? 'block' : 'none';
     document.getElementById('detailVatAmount').value = detailBeleg.vat_amount != null ? Number(detailBeleg.vat_amount).toFixed(2) : '';
     document.getElementById('detailVatRate').value = detailBeleg.vat_rate != null ? detailBeleg.vat_rate : '';
     // Populate detail folder custom dropdown
