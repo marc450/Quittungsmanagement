@@ -892,6 +892,7 @@
           <div class="custom-dropdown-menu" id="folderDropdownMenu"></div>
         </div>
         <button class="btn-new-folder" onclick="promptCreateFolder()" style="border-radius:3px;padding:8px 14px;white-space:nowrap">+ Neuer Einsatz</button>
+        <button id="deleteFolderBtnMobile" onclick="deleteCurrentFolder()" style="display:none;font-family:var(--mono);font-size:11px;color:var(--accent);background:none;border:1px solid #f0c0b8;border-radius:3px;padding:8px 10px;cursor:pointer;white-space:nowrap">🗑</button>
       </div>
       <div class="folders-bar" id="foldersBar"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
@@ -1567,6 +1568,8 @@ Rules:
     const deleteBtn = document.getElementById('deleteFolderBtn');
     if (titleEl) titleEl.textContent = activeFolder ? activeFolder.name : 'Belege';
     if (deleteBtn) deleteBtn.style.display = activeFolder ? 'inline-block' : 'none';
+    const deleteBtnMobile = document.getElementById('deleteFolderBtnMobile');
+    if (deleteBtnMobile) deleteBtnMobile.style.display = activeFolder ? 'inline-block' : 'none';
   }
 
   function toggleDropdown(id) {
