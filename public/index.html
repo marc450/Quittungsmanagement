@@ -505,6 +505,18 @@
           <input type="text" id="detailDate" class="field-input" placeholder="TT.MM.JJJJ" />
         </div>
       </div>
+      <div class="modal-field" id="detailTipSection" style="display:none">
+        <div class="cell-label" style="margin-bottom:6px">Trinkgeld</div>
+        <div style="display:flex;gap:6px">
+          <input type="number" step="0.01" id="detailTip" class="field-input" placeholder="0.00" style="flex:1" />
+          <div style="flex:1">
+            <input type="number" step="0.01" id="detailTotalCharged" class="field-input" placeholder="Kartenbetrag" readonly style="background:#f5f0e8;color:var(--muted)" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-field" id="detailAddTipLink" style="display:none">
+        <a href="#" onclick="event.preventDefault();document.getElementById('detailTipSection').style.display='block';document.getElementById('detailAddTipLink').style.display='none';document.getElementById('detailTip').focus()" style="font-size:11px;color:var(--muted);text-decoration:none;letter-spacing:0.04em">+ Trinkgeld hinzufügen</a>
+      </div>
       <div class="modal-field">
         <div class="cell-label" style="margin-bottom:6px">Zahlungsart</div>
         <div class="custom-dropdown" id="detailPaymentMethodDD">
@@ -756,6 +768,21 @@
           <div class="cell-label" style="margin-bottom:6px">Währung</div>
           <input type="text" id="resultCurrency" class="field-input" placeholder="CHF" style="width:70px" />
         </div>
+      </div>
+      <div id="resultTipSection" style="padding:0 20px 16px;display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div class="cell-label" style="margin-bottom:6px">Trinkgeld</div>
+            <input type="number" step="0.01" id="resultTip" class="field-input" placeholder="0.00" />
+          </div>
+          <div>
+            <div class="cell-label" style="margin-bottom:6px">Kartenbetrag</div>
+            <input type="number" step="0.01" id="resultTotalCharged" class="field-input" placeholder="0.00" readonly style="background:#f5f0e8;color:var(--muted)" />
+          </div>
+        </div>
+      </div>
+      <div id="resultAddTipLink" style="padding:0 20px 8px;display:none">
+        <a href="#" onclick="event.preventDefault();document.getElementById('resultTipSection').style.display='block';document.getElementById('resultAddTipLink').style.display='none';document.getElementById('resultTip').focus()" style="font-size:11px;color:var(--muted);text-decoration:none;letter-spacing:0.04em">+ Trinkgeld hinzufügen</a>
       </div>
       <div style="padding:0 20px 16px">
         <div class="cell-label" style="margin-bottom:6px">Datum</div>
@@ -1271,7 +1298,12 @@
         type: "image", source: { type: "base64", media_type: "image/jpeg", data: s.croppedBase64 }
       }));
       const multiNote = croppedSlots.length > 1
-        ? `\n\nIMPORTANT: These ${croppedSlots.length} images are parts of the SAME receipt (e.g. top and bottom halves of a long receipt). Combine all information from all images into a single JSON result.`
+        ? `\n\nIMPORTANT: These ${croppedSlots.length} images are parts of the SAME transaction. They may be:
+- Multiple parts of one long receipt (top/bottom halves), OR
+- A restaurant bill (Rechnung) paired with a card payment slip (Kundenbeleg)
+
+If you see a Rechnung (with items, MwSt) AND a Kundenbeleg (card terminal slip with a different, higher total): the Rechnung total is the "total", the card slip total is "total_charged", and the difference is the "tip". Use the Rechnung for items, MwSt, merchant details.
+Combine all information into a single JSON result.`
         : '';
       const payload = {
         model: "claude-sonnet-4-6",
@@ -1281,11 +1313,13 @@
           { type: "text", text: `You are a receipt parser. Extract data from this receipt image and respond with ONLY a raw JSON object — no markdown, no explanation, no code fences. Start with { and end with }.
 
 Use exactly this structure:
-{"merchant":"string","date":"string","total":number_or_null,"currency":"string","address":"string","city":"string","country":"string","country_code":"2-letter ISO","is_switzerland":true_or_false,"vat_rate":number_or_null,"vat_amount":number_or_null,"net_amount":number_or_null,"items":[{"name":"string","price":number}],"notes":"string"}
+{"merchant":"string","date":"string","total":number_or_null,"tip":number_or_null,"total_charged":number_or_null,"currency":"string","address":"string","city":"string","country":"string","country_code":"2-letter ISO","is_switzerland":true_or_false,"vat_rate":number_or_null,"vat_amount":number_or_null,"net_amount":number_or_null,"items":[{"name":"string","price":number}],"notes":"string"}
 
 Rules:
-- total: number only e.g. 12.50, null if unreadable
-- For Swiss receipts: vat_rate=8.1, vat_amount=total/1.081*0.081, net_amount=total/1.081
+- total: the bill/consumption amount (before tip), number only e.g. 12.50, null if unreadable
+- tip: tip amount if detectable (e.g. difference between bill and card payment), null if no tip
+- total_charged: the amount actually charged to the card (total + tip), null if same as total or no card slip
+- For Swiss receipts: vat_rate=8.1, vat_amount=total/1.081*0.081, net_amount=total/1.081 (based on total, NOT total_charged)
 - items: line items if visible, empty array if not
 - null for any unreadable field${multiNote}` }
         ]}]
@@ -1310,6 +1344,18 @@ Rules:
     document.getElementById('resultMerchant').value = r.merchant || '';
     document.getElementById('resultTotal').value = r.total != null ? r.total.toFixed(2) : '';
     document.getElementById('resultCurrency').value = r.currency || 'CHF';
+    // Tip section
+    const hasTip = r.tip != null && r.tip > 0;
+    document.getElementById('resultTipSection').style.display = hasTip ? 'block' : 'none';
+    document.getElementById('resultAddTipLink').style.display = hasTip ? 'none' : 'block';
+    document.getElementById('resultTip').value = hasTip ? r.tip.toFixed(2) : '';
+    document.getElementById('resultTotalCharged').value = r.total_charged != null ? r.total_charged.toFixed(2) : '';
+    // Recalculate total_charged when tip changes
+    document.getElementById('resultTip').oninput = () => {
+      const total = parseFloat(document.getElementById('resultTotal').value) || 0;
+      const tip = parseFloat(document.getElementById('resultTip').value) || 0;
+      document.getElementById('resultTotalCharged').value = (total + tip).toFixed(2);
+    };
     document.getElementById('resultDate').value = r.date || '';
     document.getElementById('resultAddress').value = r.address || r.city || '';
     const isCH = r.country_code === 'CH' || r.is_switzerland;
@@ -1414,6 +1460,7 @@ Rules:
       const publicUrl = uploadData.publicUrl;
 
       const saveAmount = document.getElementById('resultTotal').value;
+      const saveTip = document.getElementById('resultTip').value;
       const saveVatAmt = document.getElementById('resultVatAmount').value;
       const saveVatRate = document.getElementById('resultVatRate').value;
       const { error } = await sb.from('belege').insert({
@@ -1421,6 +1468,7 @@ Rules:
         merchant: document.getElementById('resultMerchant').value.trim() || null,
         date: document.getElementById('resultDate').value.trim() || null,
         amount: saveAmount !== '' ? parseFloat(saveAmount) : null,
+        tip: saveTip !== '' ? parseFloat(saveTip) : null,
         currency: document.getElementById('resultCurrency').value.trim() || null,
         vat_amount: saveVatAmt !== '' ? parseFloat(saveVatAmt) : null,
         vat_rate: saveVatRate !== '' ? parseFloat(saveVatRate) : null,
@@ -1450,7 +1498,7 @@ Rules:
 
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
-      .select('id,merchant,date,amount,currency,vat_amount,vat_rate,address,items,country_code,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
+      .select('id,merchant,date,amount,currency,tip,vat_amount,vat_rate,address,items,country_code,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
       .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false });
     if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
@@ -1724,7 +1772,7 @@ Rules:
           </div>
           ${b.beschreibung ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(b.beschreibung)}</div>` : ''}
         </div>
-        <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</div>
+        <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}${b.tip>0?`<div style="font-size:10px;color:var(--muted);font-weight:300">+ ${Number(b.tip).toFixed(2)} Trinkgeld</div>`:''}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
       </div>`).join('');
 
@@ -1765,6 +1813,17 @@ Rules:
     } else {
       itemsSection.style.display = 'none';
     }
+    // Tip section - show if tip exists, or show "add tip" link
+    const detailHasTip = detailBeleg.tip != null && Number(detailBeleg.tip) > 0;
+    document.getElementById('detailTipSection').style.display = detailHasTip ? 'block' : 'none';
+    document.getElementById('detailAddTipLink').style.display = detailHasTip ? 'none' : 'block';
+    document.getElementById('detailTip').value = detailHasTip ? Number(detailBeleg.tip).toFixed(2) : '';
+    document.getElementById('detailTotalCharged').value = detailHasTip ? (Number(detailBeleg.amount || 0) + Number(detailBeleg.tip || 0)).toFixed(2) : '';
+    document.getElementById('detailTip').oninput = () => {
+      const amt = parseFloat(document.getElementById('detailAmount').value) || 0;
+      const tip = parseFloat(document.getElementById('detailTip').value) || 0;
+      document.getElementById('detailTotalCharged').value = (amt + tip).toFixed(2);
+    };
     document.getElementById('detailAddress').value = detailBeleg.address || '';
     const detailIsCH = (detailBeleg.currency || '').toUpperCase() === 'CHF' || (detailBeleg.country_code || '').toUpperCase() === 'CH';
     document.getElementById('detailVatSection').style.display = detailIsCH ? 'block' : 'none';
@@ -1821,10 +1880,12 @@ Rules:
     btn.classList.add('loading'); btn.disabled = true;
     try {
       const amount = document.getElementById('detailAmount').value;
+      const detailTipVal = document.getElementById('detailTip').value;
       const payload = {
         merchant: document.getElementById('detailMerchant').value.trim() || null,
         date: document.getElementById('detailDate').value.trim() || null,
         amount: amount !== '' ? parseFloat(amount) : null,
+        tip: detailTipVal !== '' ? parseFloat(detailTipVal) : null,
         currency: document.getElementById('detailCurrency').value.trim() || null,
         payment_method: document.getElementById('detailPaymentMethod').value,
         category: document.getElementById('detailCategory').value,
@@ -1956,9 +2017,9 @@ Rules:
   });
 
   function updateKpiBar(filtered) {
-    const chf = filtered.filter(b => (b.currency||'CHF').toUpperCase() === 'CHF').reduce((s,b) => s + (Number(b.amount)||0), 0);
-    const eur = filtered.filter(b => (b.currency||'').toUpperCase() === 'EUR').reduce((s,b) => s + (Number(b.amount)||0), 0);
-    const usd = filtered.filter(b => (b.currency||'').toUpperCase() === 'USD').reduce((s,b) => s + (Number(b.amount)||0), 0);
+    const chf = filtered.filter(b => (b.currency||'CHF').toUpperCase() === 'CHF').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
+    const eur = filtered.filter(b => (b.currency||'').toUpperCase() === 'EUR').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
+    const usd = filtered.filter(b => (b.currency||'').toUpperCase() === 'USD').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
     const vat = filtered.reduce((s,b) => s + (Number(b.vat_amount)||0), 0);
     document.getElementById('kpiCount').textContent = filtered.length;
     document.getElementById('kpiTotalCHF').textContent = chf.toFixed(2);
@@ -2244,12 +2305,13 @@ Rules:
     }
 
     container.innerHTML = `<table class="admin-belege-table">
-      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlungsart</th><th>Kategorie</th><th>Einsatz</th></tr></thead>
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Trinkgeld</th><th>Zahlungsart</th><th>Kategorie</th><th>Einsatz</th></tr></thead>
       <tbody>${filtered.map(b => `<tr>
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
         <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
         <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
+        <td style="color:var(--muted)">${b.tip>0?Number(b.tip).toFixed(2):'—'}</td>
         <td><span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'—')}</span></td>
         <td><span class="cat-badge">${esc(b.category||'—')}</span></td>
         <td style="color:var(--muted);font-size:11px">${b.folder_id && adminFolderMap[b.folder_id] ? '📁 '+esc(adminFolderMap[b.folder_id]) : '—'}</td>
@@ -2342,11 +2404,13 @@ Rules:
       for (const b of belege) {
         if (usedBelege.has(b.id)) continue;
         const bAmount = Math.round((Number(b.amount) || 0) * 100);
+        const bTip = Math.round((Number(b.tip) || 0) * 100);
+        const bTotal = bAmount + bTip; // amount + tip = what the bank sees
         const bCurrency = (b.currency || '').toUpperCase();
 
-        // Try matching: CHF amount vs CHF beleg, OR original currency amount vs same-currency beleg
-        const chfMatch = bAmount === txAmountChf;
-        const origMatch = txAmountOrig != null && txCurrOrig && bCurrency === txCurrOrig && bAmount === txAmountOrig;
+        // Try matching: CHF amount vs CHF beleg (with or without tip), OR original currency amount vs same-currency beleg
+        const chfMatch = bAmount === txAmountChf || (bTip > 0 && bTotal === txAmountChf);
+        const origMatch = txAmountOrig != null && txCurrOrig && bCurrency === txCurrOrig && (bAmount === txAmountOrig || (bTip > 0 && bTotal === txAmountOrig));
         if (!chfMatch && !origMatch) continue;
 
         const bDate = normalizeDate(b.date);

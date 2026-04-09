@@ -81,7 +81,7 @@ app.get('/api/admin/belege', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Missing userId' });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const r = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/belege?user_id=eq.${userId}&select=id,merchant,date,amount,currency,payment_method,category,beschreibung,image_url,folder_id,created_at&order=created_at.desc`,
+    `${process.env.SUPABASE_URL}/rest/v1/belege?user_id=eq.${userId}&select=id,merchant,date,amount,currency,tip,payment_method,category,beschreibung,image_url,folder_id,created_at&order=created_at.desc`,
     { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
   );
   const data = await r.json();
