@@ -52,7 +52,16 @@
   .drop-hint { font-size: 11px; color: var(--muted); margin-top: 6px; opacity: 0.7; }
   .preview-area { display: none; margin-top: 20px; gap: 20px; align-items: flex-start; }
   .preview-area.visible { display: flex; }
-  .preview-img { width: 140px; min-width: 140px; border-radius: 3px; border: 1.5px solid var(--border); object-fit: cover; max-height: 200px; }
+  .multi-thumbs { display: flex; gap: 8px; flex-wrap: wrap; min-width: 140px; }
+  .multi-thumb { position: relative; width: 100px; height: 130px; border-radius: 3px; border: 1.5px solid var(--border); overflow: hidden; cursor: pointer; flex-shrink: 0; }
+  .multi-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .multi-thumb .thumb-badge { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 2px; font-family: var(--mono); }
+  .multi-thumb .thumb-remove { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: #fff; border: none; font-size: 14px; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+  .multi-thumb .thumb-remove:hover { background: var(--accent); }
+  .multi-thumb .thumb-crop { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55); color: #fff; border: none; font-family: var(--mono); font-size: 10px; padding: 4px 0; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+  .multi-thumb .thumb-crop:hover { background: var(--accent); }
+  .multi-thumb.uncropped { border-color: var(--accent); }
+  .multi-thumb.active-crop { border-color: var(--success); border-width: 2px; }
   .preview-meta { flex: 1; }
   .preview-filename { font-weight: 500; margin-bottom: 4px; }
   .preview-size { color: var(--muted); font-size: 11px; }
@@ -295,7 +304,7 @@
     .mobile-upload-active .receipts-section { display: none; }
     .mobile-upload-active .fab { display: none !important; }
     .mobile-upload-active .kpi-bar { display: none; }
-    .mobile-upload-active .custom-dropdown { display: none; }
+    .mobile-upload-active #folderDropdown { display: none; }
     .mobile-upload-active .btn-new-folder { display: none; }
     .mobile-upload-active #belegeFilter { display: none; }
     .mobile-upload-active #belegeSort { display: none; }
@@ -308,7 +317,8 @@
     .drop-text { font-size: 12px; }
 
     .preview-area.visible { flex-direction: column; }
-    .preview-img { width: 100%; min-width: unset; max-height: 200px; }
+    .multi-thumbs { min-width: unset; width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .multi-thumb { width: 80px; height: 105px; flex-shrink: 0; }
     .btn-analyze { width: 100%; justify-content: center; padding: 12px 16px; }
 
     .result-grid { grid-template-columns: 1fr; }
@@ -467,8 +477,8 @@
     </div>
   </div>
   <div class="cropper-bottombar">
-    <button class="btn-crop-cancel" onclick="closeCropper()">Abbrechen</button>
-    <button class="btn-crop-confirm" onclick="confirmCrop()">✓ Zuschneiden &amp; Analysieren</button>
+    <button class="btn-crop-cancel" onclick="cancelCrop()">Überspringen</button>
+    <button class="btn-crop-confirm" onclick="confirmCrop()">✓ Zuschneiden</button>
   </div>
 </div>
 
@@ -709,18 +719,20 @@
     <div class="upload-section" style="margin-bottom:32px">
       <div class="section-label">Quittung hochladen</div>
       <div class="drop-zone" id="dropZone">
-        <input type="file" id="fileInput" accept="image/*,.pdf" />
+        <input type="file" id="fileInput" accept="image/*,.pdf" multiple />
         <span class="drop-icon">🧾</span>
-        <div class="drop-text">Datei hierher ziehen oder <strong>auswählen</strong></div>
-        <div class="drop-hint">JPG, PNG, HEIC — max. 10 MB</div>
+        <div class="drop-text">Dateien hierher ziehen oder <strong>auswählen</strong></div>
+        <div class="drop-hint">JPG, PNG, HEIC — max. 10 MB · Mehrere Bilder für lange Quittungen</div>
       </div>
       <div class="preview-area" id="previewArea">
-        <img class="preview-img" id="previewImg" src="" alt="Vorschau" />
+        <div class="multi-thumbs" id="multiThumbs"></div>
         <div class="preview-meta">
           <div class="preview-filename" id="previewName">—</div>
           <div class="preview-size" id="previewSize">—</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
-            <button class="btn-analyze" id="cropBtn" onclick="openCropper()">✂ Zuschneiden</button>
+            <label class="btn-analyze" id="addMoreBtn" style="cursor:pointer">+ Bild hinzufügen
+              <input type="file" accept="image/*" id="addMoreInput" style="display:none" />
+            </label>
             <button class="btn-analyze" id="analyzeBtn" onclick="analyzeReceipt()" style="display:none">
               <span class="spinner"></span><span class="btn-label">Analysieren</span>
             </button>
@@ -794,6 +806,17 @@
         </div>
       </div>
       <div style="padding:0 20px 16px">
+        <div class="cell-label" style="margin-bottom:6px">Einsatz</div>
+        <div id="saveFolderDropdown" class="custom-dropdown">
+          <div class="custom-dropdown-trigger" onclick="toggleDropdown('saveFolderDropdown')">
+            <span id="saveFolderLabel">— Kein Einsatz —</span>
+            <span style="font-size:10px;opacity:0.5">▼</span>
+          </div>
+          <div class="custom-dropdown-menu" id="saveFolderMenu"></div>
+        </div>
+        <input type="hidden" id="saveFolder" value="" />
+      </div>
+      <div style="padding:0 20px 16px">
         <input type="text" id="saveBeschreibung" class="field-input" placeholder="Beschreibung (optional)" />
       </div>
       <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:8px">
@@ -862,7 +885,7 @@
   </div>
   <!-- Floating action button (mobile) -->
   <label class="fab" id="fabBtn">+
-    <input type="file" accept="image/*,.pdf" id="fabFileInput" style="display:none" />
+    <input type="file" accept="image/*,.pdf" id="fabFileInput" multiple style="display:none" />
   </label>
 </div>
 
@@ -918,6 +941,8 @@
   const { createClient } = supabase;
   let sb, currentUser, currentProfile;
   let currentResult = null, croppedBase64 = null;
+  let imageSlots = []; // [{originalDataUrl, croppedDataUrl, croppedBase64}]
+  let cropQueueIndex = -1; // index of image currently being cropped in auto-queue
   let belege = [], detailBeleg = null;
   let folders = [], currentFolderId = null, draggingBelegId = null;
 
@@ -999,42 +1024,121 @@
   const dropZone = document.getElementById('dropZone');
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
-  document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+  document.getElementById('fileInput').addEventListener('change', e => { handleFiles(e.target.files); });
+  document.getElementById('addMoreInput').addEventListener('change', e => { handleFiles(e.target.files, true); e.target.value = ''; });
 
-  function handleFile(file) {
-    currentResult = null; croppedBase64 = null;
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('previewImg').src = e.target.result;
-      document.getElementById('previewName').textContent = file.name;
-      document.getElementById('previewSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
-      document.getElementById('previewArea').classList.add('visible');
-      document.getElementById('resultCard').classList.remove('visible');
-      document.getElementById('analyzeBtn').style.display = 'none';
-      document.getElementById('cropDoneNote').style.display = 'none';
-      document.getElementById('cropBtn').style.display = 'inline-flex';
-      hideError();
-      openCropper();
-    };
-    reader.readAsDataURL(file);
+  function handleFiles(fileList, append) {
+    if (!fileList || !fileList.length) return;
+    if (!append) {
+      imageSlots = [];
+      currentResult = null; croppedBase64 = null;
+    }
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('analyzeBtn').style.display = 'none';
+    document.getElementById('cropDoneNote').style.display = 'none';
+    hideError();
+
+    const startIdx = imageSlots.length;
+    let loaded = 0;
+    const total = fileList.length;
+
+    for (let i = 0; i < total; i++) {
+      const file = fileList[i];
+      const reader = new FileReader();
+      const slotIdx = startIdx + i;
+      imageSlots[slotIdx] = { originalDataUrl: null, croppedDataUrl: null, croppedBase64: null };
+      reader.onload = e => {
+        imageSlots[slotIdx].originalDataUrl = e.target.result;
+        loaded++;
+        if (loaded === total) {
+          updatePreviewInfo();
+          renderThumbs();
+          document.getElementById('previewArea').classList.add('visible');
+          startCropQueue(startIdx);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   }
+
+  function updatePreviewInfo() {
+    const n = imageSlots.length;
+    document.getElementById('previewName').textContent = n + ' Bild' + (n !== 1 ? 'er' : '');
+    const cropped = imageSlots.filter(s => s.croppedBase64).length;
+    document.getElementById('previewSize').textContent = cropped + '/' + n + ' zugeschnitten';
+  }
+
+  function renderThumbs() {
+    const container = document.getElementById('multiThumbs');
+    container.innerHTML = imageSlots.map((slot, i) => {
+      const src = slot.croppedDataUrl || slot.originalDataUrl || '';
+      const cls = slot.croppedBase64 ? '' : 'uncropped';
+      return `<div class="multi-thumb ${cls}" data-idx="${i}">
+        <img src="${src}" />
+        <span class="thumb-badge">${i + 1}</span>
+        <button class="thumb-remove" onclick="event.stopPropagation();removeSlot(${i})">&times;</button>
+        <button class="thumb-crop" onclick="event.stopPropagation();cropSlot(${i})">✂</button>
+      </div>`;
+    }).join('');
+    updatePreviewInfo();
+    const allCropped = imageSlots.length > 0 && imageSlots.every(s => s.croppedBase64);
+    document.getElementById('analyzeBtn').style.display = allCropped ? 'inline-flex' : 'none';
+    document.getElementById('cropDoneNote').style.display = allCropped ? 'block' : 'none';
+  }
+
+  function removeSlot(idx) {
+    imageSlots.splice(idx, 1);
+    if (imageSlots.length === 0) {
+      discardUpload();
+      return;
+    }
+    renderThumbs();
+  }
+
+  function cropSlot(idx) {
+    cropQueueIndex = -1; // manual crop, not queued
+    openCropperForSlot(idx);
+  }
+
+  function startCropQueue(fromIdx) {
+    cropQueueIndex = fromIdx;
+    openCropperForSlot(cropQueueIndex);
+  }
+
+  function advanceCropQueue() {
+    if (cropQueueIndex < 0) return; // manual crop
+    cropQueueIndex++;
+    if (cropQueueIndex < imageSlots.length && !imageSlots[cropQueueIndex].croppedBase64) {
+      openCropperForSlot(cropQueueIndex);
+    } else {
+      cropQueueIndex = -1;
+      renderThumbs();
+      // Auto-analyze if all cropped
+      if (imageSlots.every(s => s.croppedBase64)) analyzeReceipt();
+    }
+  }
+
+  let currentCropSlotIdx = -1;
 
   let cropImg, cropImgW, cropImgH, stageW, stageH, imgOffX, imgOffY, imgRenderW, imgRenderH;
   let crop = {x:0,y:0,w:0,h:0}, drag = null;
   const MIN_CROP = 40, HANDLE_HIT = 28;
 
-  function openCropper() {
+  function openCropperForSlot(idx) {
+    if (idx < 0 || idx >= imageSlots.length) return;
+    currentCropSlotIdx = idx;
+    const slot = imageSlots[idx];
     document.getElementById('cropperOverlay').classList.add('active');
+    document.querySelector('.cropper-title').textContent = imageSlots.length > 1
+      ? `Bild ${idx + 1} von ${imageSlots.length} zuschneiden`
+      : 'Quittung zuschneiden';
     const stage = document.getElementById('cropStage');
-    const canvas = document.getElementById('cropCanvas');
     cropImg = new Image();
     cropImg.onload = async () => {
-      // Use createImageBitmap to auto-correct EXIF rotation
       try {
         const bmp = await createImageBitmap(cropImg);
         cropImgW = bmp.width; cropImgH = bmp.height;
-        // Redraw corrected image to a temp canvas
         const tmp = document.createElement('canvas'); tmp.width = cropImgW; tmp.height = cropImgH;
         tmp.getContext('2d').drawImage(bmp, 0, 0);
         bmp.close();
@@ -1042,11 +1146,11 @@
         cropImg.onload = () => initCropStage();
         cropImg.src = tmp.toDataURL('image/jpeg', 0.95);
         return;
-      } catch(e) { /* fallback: use original */ }
+      } catch(e) {}
       cropImgW = cropImg.naturalWidth; cropImgH = cropImg.naturalHeight;
       initCropStage();
     };
-    cropImg.src = document.getElementById('previewImg').src;
+    cropImg.src = slot.originalDataUrl;
     stage.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
@@ -1074,6 +1178,13 @@
     stage.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
+    currentCropSlotIdx = -1;
+  }
+
+  function cancelCrop() {
+    closeCropper();
+    renderThumbs();
+    advanceCropQueue();
   }
 
   function updateCropBox() {
@@ -1137,25 +1248,37 @@
     const out=document.createElement('canvas'); out.width=outW; out.height=outH;
     out.getContext('2d').drawImage(cropImg,srcX,srcY,srcW,srcH,0,0,outW,outH);
     const dataUrl=out.toDataURL('image/jpeg',0.92);
-    croppedBase64=dataUrl.split(',')[1];
-    document.getElementById('previewImg').src=dataUrl;
+    const b64=dataUrl.split(',')[1];
+
+    if (currentCropSlotIdx >= 0 && currentCropSlotIdx < imageSlots.length) {
+      imageSlots[currentCropSlotIdx].croppedDataUrl = dataUrl;
+      imageSlots[currentCropSlotIdx].croppedBase64 = b64;
+    }
+    // Keep legacy croppedBase64 for single-image compat
+    croppedBase64 = b64;
+
     closeCropper();
-    document.getElementById('cropBtn').style.display='none';
-    document.getElementById('analyzeBtn').style.display='inline-flex';
-    document.getElementById('cropDoneNote').style.display='block';
-    analyzeReceipt();
+    renderThumbs();
+    advanceCropQueue();
   }
 
   async function analyzeReceipt() {
-    if (!croppedBase64) { showError('Kein Bild zugeschnitten.'); return; }
+    const croppedSlots = imageSlots.filter(s => s.croppedBase64);
+    if (!croppedSlots.length) { showError('Kein Bild zugeschnitten.'); return; }
     const btn = document.getElementById('analyzeBtn');
     btn.classList.add('loading'); btn.disabled = true; hideError();
     try {
+      const imageBlocks = croppedSlots.map((s, i) => ({
+        type: "image", source: { type: "base64", media_type: "image/jpeg", data: s.croppedBase64 }
+      }));
+      const multiNote = croppedSlots.length > 1
+        ? `\n\nIMPORTANT: These ${croppedSlots.length} images are parts of the SAME receipt (e.g. top and bottom halves of a long receipt). Combine all information from all images into a single JSON result.`
+        : '';
       const payload = {
         model: "claude-sonnet-4-6",
         max_tokens: 1000,
         messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: croppedBase64 } },
+          ...imageBlocks,
           { type: "text", text: `You are a receipt parser. Extract data from this receipt image and respond with ONLY a raw JSON object — no markdown, no explanation, no code fences. Start with { and end with }.
 
 Use exactly this structure:
@@ -1165,7 +1288,7 @@ Rules:
 - total: number only e.g. 12.50, null if unreadable
 - For Swiss receipts: vat_rate=8.1, vat_amount=total/1.081*0.081, net_amount=total/1.081
 - items: line items if visible, empty array if not
-- null for any unreadable field` }
+- null for any unreadable field${multiNote}` }
         ]}]
       };
       const response = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -1204,6 +1327,8 @@ Rules:
     document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'nearest'});
     setCustomSelect('savePaymentMethodDD', 'savePaymentMethod', '');
     setCustomSelect('saveCategoryDD', 'saveCategory', '');
+    populateSaveFolderDropdown();
+    selectSaveFolder(currentFolderId);
     document.getElementById('saveBeschreibung').value = '';
   }
 
@@ -1214,6 +1339,53 @@ Rules:
     return new Blob([arr], { type: mime });
   }
 
+  function stitchImages() {
+    return new Promise(resolve => {
+      const croppedSlots = imageSlots.filter(s => s.croppedDataUrl);
+      if (croppedSlots.length === 1) {
+        resolve(croppedSlots[0].croppedBase64);
+        return;
+      }
+      // Load all cropped images to measure dimensions
+      let loaded = 0;
+      const imgs = [];
+      croppedSlots.forEach((slot, i) => {
+        const img = new Image();
+        img.onload = () => {
+          imgs[i] = img;
+          loaded++;
+          if (loaded === croppedSlots.length) {
+            // Stitch vertically: normalize all to same width
+            const targetW = Math.max(...imgs.map(im => im.naturalWidth));
+            let totalH = 0;
+            const heights = imgs.map(im => {
+              const h = Math.round(im.naturalHeight * (targetW / im.naturalWidth));
+              totalH += h;
+              return h;
+            });
+            // Cap total height at 4000px
+            const MAX_H = 4000;
+            let scale = 1;
+            if (totalH > MAX_H) { scale = MAX_H / totalH; }
+            const finalW = Math.round(targetW * scale);
+            const finalH = Math.round(totalH * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = finalW; canvas.height = finalH;
+            const ctx = canvas.getContext('2d');
+            let y = 0;
+            imgs.forEach((im, i) => {
+              const h = Math.round(heights[i] * scale);
+              ctx.drawImage(im, 0, y, finalW, h);
+              y += h;
+            });
+            resolve(canvas.toDataURL('image/jpeg', 0.90).split(',')[1]);
+          }
+        };
+        img.src = slot.croppedDataUrl;
+      });
+    });
+  }
+
   async function saveBeleg() {
     if (!currentResult || !currentUser) return;
     if (!document.getElementById('savePaymentMethod').value) { nativeConfirm('Bitte Zahlungsart wählen.', 'Pflichtfeld'); return; }
@@ -1222,20 +1394,20 @@ Rules:
     btn.classList.add('loading'); btn.disabled = true;
 
     try {
-      // Upload image via server proxy (avoids browser CORS)
+      // Stitch multiple images into one tall JPEG
+      const uploadBase64 = await stitchImages();
       const fileName = `${currentUser.id}/${Date.now()}.jpg`;
       const sessionResult = await sb.auth.getSession();
       const session = sessionResult.data?.session;
       if (!session) throw new Error('Keine Session – bitte neu einloggen.');
-      const b64Len = croppedBase64 ? croppedBase64.length : 0;
-      console.log('saveBeleg: fileName=', fileName, 'b64 length=', b64Len);
+      console.log('saveBeleg: fileName=', fileName, 'images=', imageSlots.length);
       const uploadRes = await fetch('/api/upload-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ imageBase64: croppedBase64, fileName }),
+        body: JSON.stringify({ imageBase64: uploadBase64, fileName }),
       });
       console.log('saveBeleg: upload status=', uploadRes.status);
       const uploadData = await uploadRes.json();
@@ -1259,6 +1431,7 @@ Rules:
         payment_method: document.getElementById('savePaymentMethod').value,
         category: document.getElementById('saveCategory').value,
         beschreibung: document.getElementById('saveBeschreibung').value.trim() || null,
+        folder_id: document.getElementById('saveFolder').value || null,
         image_url: publicUrl,
       });
       if (error) throw new Error('DB: ' + error.message);
@@ -1267,7 +1440,7 @@ Rules:
       document.getElementById('previewArea').classList.remove('visible');
       document.getElementById('fileInput').value = '';
       hideUploadSection();
-      currentResult = null; croppedBase64 = null;
+      currentResult = null; croppedBase64 = null; imageSlots = [];
       await loadBelege();
     } catch (err) {
       showError('Fehler: ' + err.message);
@@ -1279,6 +1452,7 @@ Rules:
   async function loadBelege() {
     const { data, error } = await sb.from('belege')
       .select('id,merchant,date,amount,currency,vat_amount,vat_rate,address,items,country_code,payment_method,category,beschreibung,image_url,abrechnung_id,folder_id,created_at')
+      .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false });
     if (!error) { belege = data || []; renderFolders(); renderBelegeList(); }
   }
@@ -1360,6 +1534,34 @@ Rules:
   function selectFolder(id) {
     document.getElementById('folderDropdown').classList.remove('open');
     filterByFolder(id);
+  }
+
+  function populateSaveFolderDropdown() {
+    const menu = document.getElementById('saveFolderMenu');
+    const curVal = document.getElementById('saveFolder').value;
+    menu.innerHTML = `<div class="custom-dropdown-item ${!curVal?'active':''}" onclick="selectSaveFolder(null)">
+        <div class="folder-name">— Kein Einsatz —</div>
+      </div>` +
+      folders.map(f => {
+        const p = parseFolderNameParts(f.name);
+        return `<div class="custom-dropdown-item ${curVal===f.id?'active':''}" onclick="selectSaveFolder('${f.id}')">
+          <div class="folder-name">📁 ${esc(p.customer)}</div>
+          ${p.dates ? `<div class="folder-dates">${esc(p.dates)}</div>` : ''}
+        </div>`;
+      }).join('');
+  }
+
+  function selectSaveFolder(id) {
+    document.getElementById('saveFolderDropdown').classList.remove('open');
+    document.getElementById('saveFolder').value = id || '';
+    const label = document.getElementById('saveFolderLabel');
+    if (id) {
+      const f = folders.find(f => f.id === id);
+      const p = f ? parseFolderNameParts(f.name) : null;
+      label.textContent = p ? `📁 ${p.customer}` : '—';
+    } else {
+      label.textContent = '— Kein Einsatz —';
+    }
   }
 
   function selectDetailFolder(id) {
@@ -1742,14 +1944,14 @@ Rules:
     document.getElementById('resultCard').classList.remove('visible');
     document.getElementById('previewArea').classList.remove('visible');
     document.getElementById('fileInput').value = '';
-    currentResult = null; croppedBase64 = null;
+    currentResult = null; croppedBase64 = null; imageSlots = [];
     hideUploadSection();
   }
 
   document.getElementById('fabFileInput').addEventListener('change', e => {
-    if (e.target.files[0]) {
+    if (e.target.files.length) {
       showUploadSection();
-      handleFile(e.target.files[0]);
+      handleFiles(e.target.files);
     }
     e.target.value = '';
   });
