@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Quittungen · Expense Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -345,6 +345,7 @@
     /* All dialog overlays: bottom-sheet on mobile */
     .modal-overlay, .dialog-overlay { padding: 0; align-items: flex-end; }
     .modal-card, .dialog-box { border-radius: 16px 16px 0 0; max-width: 100%; }
+    .dialog-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
     .modal-card { max-height: 92vh; }
     .modal-info-grid { grid-template-columns: 1fr; }
 
