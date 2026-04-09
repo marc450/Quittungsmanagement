@@ -1108,8 +1108,9 @@
       </div>`;
     }).join('');
     updatePreviewInfo();
+    const anyCropped = imageSlots.some(s => s.croppedBase64);
     const allCropped = imageSlots.length > 0 && imageSlots.every(s => s.croppedBase64);
-    document.getElementById('analyzeBtn').style.display = allCropped ? 'inline-flex' : 'none';
+    document.getElementById('analyzeBtn').style.display = anyCropped ? 'inline-flex' : 'none';
     document.getElementById('cropDoneNote').style.display = allCropped ? 'block' : 'none';
   }
 
@@ -1133,15 +1134,13 @@
   }
 
   function advanceCropQueue() {
-    if (cropQueueIndex < 0) return; // manual crop
+    if (cropQueueIndex < 0) { renderThumbs(); return; } // manual crop
     cropQueueIndex++;
     if (cropQueueIndex < imageSlots.length && !imageSlots[cropQueueIndex].croppedBase64) {
       openCropperForSlot(cropQueueIndex);
     } else {
       cropQueueIndex = -1;
       renderThumbs();
-      // Auto-analyze if all cropped
-      if (imageSlots.every(s => s.croppedBase64)) analyzeReceipt();
     }
   }
 
