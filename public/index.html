@@ -485,7 +485,11 @@
 <!-- Detail modal -->
 <div class="modal-overlay" id="detailModal">
   <div class="modal-card">
-    <div class="modal-header" style="justify-content:flex-end;padding:10px 16px;background:transparent;border-bottom:none">
+    <div class="modal-header" style="justify-content:space-between;padding:10px 16px;background:transparent;border-bottom:none">
+      <div style="display:flex;gap:8px">
+        <button class="modal-close" onclick="downloadBelegImage()" title="Bild herunterladen" style="font-size:18px;padding:8px 12px;background:var(--cream);border-radius:20px;color:var(--ink);line-height:1">⬇</button>
+        <button class="modal-close" onclick="printBelegImage()" title="Bild drucken" style="font-size:18px;padding:8px 12px;background:var(--cream);border-radius:20px;color:var(--ink);line-height:1">🖨</button>
+      </div>
       <button class="modal-close" onclick="closeDetail()" style="font-size:24px;padding:8px 12px;background:var(--cream);border-radius:20px;color:var(--ink)">✕</button>
     </div>
     <img id="detailImage" class="modal-image" src="" alt="Beleg" />
@@ -1867,6 +1871,50 @@ Rules:
   function closeDetail() {
     document.getElementById('detailModal').classList.remove('active');
     detailBeleg = null;
+  }
+
+  function belegFilename(ext) {
+    if (!detailBeleg) return 'beleg.' + ext;
+    const parts = [];
+    if (detailBeleg.merchant) parts.push(String(detailBeleg.merchant).replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40));
+    if (detailBeleg.date) parts.push(String(detailBeleg.date).replace(/[^0-9]/g, '-'));
+    if (!parts.length) parts.push('beleg');
+    return 'Beleg_' + parts.join('_') + '.' + ext;
+  }
+
+  async function downloadBelegImage() {
+    if (!detailBeleg || !detailBeleg.image_url) { showError('Kein Bild vorhanden'); return; }
+    try {
+      const res = await fetch(detailBeleg.image_url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const ext = (blob.type.split('/')[1] || 'jpg').split(';')[0];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = belegFilename(ext);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      showError('Download fehlgeschlagen: ' + e.message);
+    }
+  }
+
+  function printBelegImage() {
+    if (!detailBeleg || !detailBeleg.image_url) { showError('Kein Bild vorhanden'); return; }
+    const w = window.open('', '_blank');
+    if (!w) { showError('Popup blockiert – bitte erlauben.'); return; }
+    const title = esc(belegFilename('').replace(/\.$/, ''));
+    const src = esc(detailBeleg.image_url);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+      html,body{margin:0;padding:0;background:#fff;font-family:sans-serif}
+      .wrap{display:flex;justify-content:center;align-items:flex-start;padding:16px}
+      img{max-width:100%;height:auto;display:block}
+      @media print { .wrap{padding:0} img{max-width:100%;max-height:100vh} }
+    </style></head><body><div class="wrap"><img src="${src}" onload="setTimeout(()=>{window.focus();window.print();},200)" /></div></body></html>`);
+    w.document.close();
   }
 
   document.getElementById('detailModal').addEventListener('click', e => {
