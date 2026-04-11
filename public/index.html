@@ -1904,17 +1904,49 @@ Rules:
 
   function printBelegImage() {
     if (!detailBeleg || !detailBeleg.image_url) { showError('Kein Bild vorhanden'); return; }
-    const w = window.open('', '_blank');
-    if (!w) { showError('Popup blockiert – bitte erlauben.'); return; }
     const title = esc(belegFilename('').replace(/\.$/, ''));
     const src = esc(detailBeleg.image_url);
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 500);
+    };
+    iframe.onload = () => {
+      try {
+        const cw = iframe.contentWindow;
+        if (!cw) { cleanup(); return; }
+        cw.onafterprint = cleanup;
+        setTimeout(() => {
+          try { cw.focus(); cw.print(); } catch (e) { showError('Drucken fehlgeschlagen: ' + e.message); cleanup(); }
+        }, 100);
+        // Safety net in case onafterprint never fires (iOS)
+        setTimeout(cleanup, 60000);
+      } catch (e) {
+        showError('Drucken fehlgeschlagen: ' + e.message);
+        cleanup();
+      }
+    };
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+    if (!doc) { showError('Drucken fehlgeschlagen'); cleanup(); return; }
+    doc.open();
+    doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
       html,body{margin:0;padding:0;background:#fff;font-family:sans-serif}
       .wrap{display:flex;justify-content:center;align-items:flex-start;padding:16px}
       img{max-width:100%;height:auto;display:block}
       @media print { .wrap{padding:0} img{max-width:100%;max-height:100vh} }
-    </style></head><body><div class="wrap"><img src="${src}" onload="setTimeout(()=>{window.focus();window.print();},200)" /></div></body></html>`);
-    w.document.close();
+    </style></head><body><div class="wrap"><img src="${src}" /></div></body></html>`);
+    doc.close();
   }
 
   document.getElementById('detailModal').addEventListener('click', e => {
