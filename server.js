@@ -60,6 +60,25 @@ async function verifyAdmin(authHeader) {
   return user.id;
 }
 
+// GET /api/all-folders — returns all folders (all users) for authenticated users
+app.get('/api/all-folders', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+  // Verify the caller is a valid user
+  const userRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { 'Authorization': authHeader, 'apikey': process.env.SUPABASE_ANON_KEY },
+  });
+  if (!userRes.ok) return res.status(401).json({ error: 'Unauthorized' });
+  // Fetch all folders using service role (bypasses RLS)
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/folders?select=id,name&order=created_at.asc`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const data = await r.json();
+  res.status(r.status).json(data);
+});
+
 // GET /api/admin/users
 app.get('/api/admin/users', async (req, res) => {
   const adminId = await verifyAdmin(req.headers.authorization);

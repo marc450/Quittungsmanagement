@@ -1520,8 +1520,19 @@ Rules:
   }
 
   async function loadFolders() {
-    const { data, error } = await sb.from('folders').select('id,name').order('created_at', { ascending: true });
-    if (!error) { folders = sortFoldersByStartDate(data || []); renderFolders(); }
+    try {
+      const session = await sb.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) return;
+      const res = await fetch('/api/all-folders', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        folders = sortFoldersByStartDate(data || []);
+        renderFolders();
+      }
+    } catch (e) {
+      console.error('loadFolders error:', e);
+    }
   }
 
   function parseFolderNameParts(name) {
