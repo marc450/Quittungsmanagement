@@ -246,6 +246,7 @@
   .kpi-item { flex: 1; min-width: 70px; padding: 10px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; text-align: center; }
   .kpi-value { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
   .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 2px; }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: var(--mono); white-space: nowrap; }
   .kpi-item.kpi-primary { background: #d4ccbc; border-color: #d4ccbc; color: var(--ink); }
   .kpi-item.kpi-primary .kpi-value { font-size: 20px; font-weight: 500; color: var(--ink); }
   .kpi-item.kpi-primary .kpi-label { color: var(--muted); }
@@ -2172,9 +2173,12 @@ Rules:
     for (const [cur, total] of others) {
       const tile = document.createElement('div');
       tile.className = 'kpi-item kpi-currency';
-      tile.innerHTML = `<div class="kpi-value">${formatMoney(total)}</div><div class="kpi-label">${esc(cur)}</div>`;
+      const rate = fxRatesCache?.[cur];
+      const chfApprox = rate ? `<div class="kpi-sub">~ ${formatMoney(total / rate)} CHF</div>` : '';
+      tile.innerHTML = `<div class="kpi-value">${formatMoney(total)}</div><div class="kpi-label">${esc(cur)}</div>${chfApprox}`;
       bar.appendChild(tile);
     }
+    if (others.length && !fxRatesCache) ensureFxRatesAndRefresh();
   }
 
   function formatDateStr(s) {
@@ -2202,6 +2206,34 @@ Rules:
     return (c || '').toLowerCase()
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  let fxRatesCache = null;
+  let fxRatesLoading = false;
+  async function loadFxRates() {
+    if (fxRatesCache) return fxRatesCache;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = 'fxRates_CHF_' + today;
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored) { fxRatesCache = JSON.parse(stored); return fxRatesCache; }
+    } catch (e) {}
+    try {
+      const res = await fetch('https://api.frankfurter.dev/v1/latest?base=CHF');
+      if (!res.ok) return null;
+      const data = await res.json();
+      fxRatesCache = data.rates || {};
+      try { sessionStorage.setItem(key, JSON.stringify(fxRatesCache)); } catch (e) {}
+      return fxRatesCache;
+    } catch (e) { return null; }
+  }
+  function ensureFxRatesAndRefresh() {
+    if (fxRatesCache || fxRatesLoading) return;
+    fxRatesLoading = true;
+    loadFxRates().then(rates => {
+      fxRatesLoading = false;
+      if (rates) renderBelegeList();
+    });
   }
   function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
   function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
