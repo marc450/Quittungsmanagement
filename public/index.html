@@ -246,9 +246,9 @@
   .kpi-item { flex: 1; min-width: 70px; padding: 10px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; text-align: center; }
   .kpi-value { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
   .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 2px; }
-  .kpi-item.kpi-currency .kpi-value { font-size: 15px; }
-  .kpi-item.kpi-currency .kpi-meta { font-size: 9px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; font-family: var(--mono); }
-  .kpi-item.kpi-currency .kpi-meta .chf { text-transform: none; letter-spacing: 0; opacity: 0.75; }
+  .kpi-item.kpi-currency .kpi-value { font-size: 16px; white-space: nowrap; }
+  .kpi-item.kpi-currency .kpi-value .ccy { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 4px; letter-spacing: 0.06em; }
+  .kpi-item.kpi-currency .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 2px; font-family: var(--mono); white-space: nowrap; }
   .kpi-item.kpi-primary { background: #d4ccbc; border-color: #d4ccbc; color: var(--ink); }
   .kpi-item.kpi-primary .kpi-value { font-size: 20px; font-weight: 500; color: var(--ink); }
   .kpi-item.kpi-primary .kpi-label { color: var(--muted); }
@@ -2176,8 +2176,8 @@ Rules:
       const tile = document.createElement('div');
       tile.className = 'kpi-item kpi-currency';
       const rate = fxRatesCache?.[cur];
-      const chfPart = rate ? ` <span class="chf">≈ ${formatMoney(total / rate)} CHF</span>` : '';
-      tile.innerHTML = `<div class="kpi-value">${formatMoney(total)}</div><div class="kpi-meta">${esc(cur)}${chfPart}</div>`;
+      const chfSub = rate ? `<div class="kpi-sub">≈ ${formatMoney(total / rate)} CHF</div>` : '';
+      tile.innerHTML = `<div class="kpi-value">${formatMoney(total)}<span class="ccy">${esc(cur)}</span></div>${chfSub}`;
       bar.appendChild(tile);
     }
     if (others.length && !fxRatesCache) ensureFxRatesAndRefresh();
