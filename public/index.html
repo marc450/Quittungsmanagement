@@ -241,10 +241,14 @@
   .hamburger-menu button:hover { background: var(--cream); }
 
   /* KPI bar */
-  .kpi-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .kpi-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: stretch; }
   .kpi-item { flex: 1; min-width: 70px; padding: 10px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; text-align: center; }
   .kpi-value { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
   .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 2px; }
+  .kpi-item.kpi-primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .kpi-item.kpi-primary .kpi-value { font-size: 20px; font-weight: 500; color: var(--paper); }
+  .kpi-item.kpi-primary .kpi-label { color: rgba(245, 240, 232, 0.55); }
+  .kpi-divider { flex: 0 0 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
 
   /* Custom dropdown */
   .custom-dropdown { position: relative; }
@@ -878,18 +882,19 @@
         </div>
       </div>
       <div class="kpi-bar" id="kpiBar">
-        <div class="kpi-item">
+        <div class="kpi-item kpi-primary">
           <div class="kpi-value" id="kpiCount">0</div>
           <div class="kpi-label">Belege</div>
         </div>
-        <div class="kpi-item">
+        <div class="kpi-item kpi-primary">
           <div class="kpi-value" id="kpiTotalCHF">0.00</div>
           <div class="kpi-label">CHF</div>
         </div>
-        <div class="kpi-item">
+        <div class="kpi-item kpi-primary">
           <div class="kpi-value" id="kpiVat">0.00</div>
           <div class="kpi-label">MwSt CHF</div>
         </div>
+        <div class="kpi-divider" aria-hidden="true"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px">
         <div id="folderDropdown" class="custom-dropdown" style="flex:1;min-width:160px">
