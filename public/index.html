@@ -125,10 +125,11 @@
   .receipt-row:hover { border-color: var(--accent); }
   .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s; }
   .receipt-thumb:hover { opacity: 0.75; }
-  .receipt-info { min-width: 0; }
+  .receipt-info { min-width: 0; overflow: hidden; }
   .receipt-info .merchant { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
-  .receipt-info .date-loc > * { flex-shrink: 0; }
+  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+  .receipt-info .date-loc > *:not(.cat-badge) { flex-shrink: 0; }
+  .receipt-info .date-loc .cat-badge { flex: 0 1 auto; min-width: 0; }
   .receipt-info .receipt-desc { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; line-height: 14px; }
   .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
   .receipt-status { font-size: 10px; }
@@ -1822,13 +1823,13 @@ Rules:
       <div class="receipt-row" onclick="openDetail('${b.id}')" data-id="${b.id}">
         <img class="receipt-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.15'" />
         <div class="receipt-info">
-          <div class="merchant">${esc(b.merchant||'Unbekannt')}</div>
+          <div class="merchant" title="${esc(b.merchant||'Unbekannt')}">${esc(b.merchant||'Unbekannt')}</div>
           <div class="date-loc">
             ${esc(formatDateStr(b.date))}
             <span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'')}</span>
-            ${b.category ? `<span class="cat-badge cat-${categorySlug(b.category)}">${esc(b.category)}</span>` : ''}
+            ${b.category ? `<span class="cat-badge cat-${categorySlug(b.category)}" title="${esc(b.category)}">${esc(b.category)}</span>` : ''}
           </div>
-          <div class="receipt-desc">${esc(b.beschreibung||'')}</div>
+          <div class="receipt-desc" title="${esc(b.beschreibung||'')}">${esc(b.beschreibung||'')}</div>
         </div>
         <div class="receipt-total">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}${b.tip>0?`<div style="font-size:10px;color:var(--muted);font-weight:300">+ ${formatMoney(b.tip)} Trinkgeld</div>`:''}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
@@ -2178,10 +2179,17 @@ Rules:
 
   function formatDateStr(s) {
     if (!s) return '—';
-    // YYYY-MM-DD → DD.MM.YYYY
-    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
-    return s;
+    const str = String(s).trim();
+    // ISO YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD → DD.MM.YYYY
+    let m = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) return `${String(m[3]).padStart(2,'0')}.${String(m[2]).padStart(2,'0')}.${m[1]}`;
+    // DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY → DD.MM.YYYY
+    m = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (m) return `${String(m[1]).padStart(2,'0')}.${String(m[2]).padStart(2,'0')}.${m[3]}`;
+    // Two-digit year: DD-MM-YY → DD.MM.20YY
+    m = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
+    if (m) return `${String(m[1]).padStart(2,'0')}.${String(m[2]).padStart(2,'0')}.20${m[3]}`;
+    return str;
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   const moneyFmt = new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
