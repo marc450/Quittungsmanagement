@@ -747,7 +747,7 @@
           <div class="preview-size" id="previewSize">—</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
             <label class="btn-analyze" id="addMoreBtn" style="cursor:pointer">+ Bild hinzufügen
-              <input type="file" accept="image/*" id="addMoreInput" style="display:none" />
+              <input type="file" accept="image/*,.pdf" id="addMoreInput" multiple style="display:none" />
             </label>
             <button class="btn-analyze" id="analyzeBtn" onclick="analyzeReceipt()" style="display:none">
               <span class="spinner"></span><span class="btn-label">Analysieren</span>
@@ -1060,7 +1060,36 @@
   document.getElementById('fileInput').addEventListener('change', e => { handleFiles(e.target.files); });
   document.getElementById('addMoreInput').addEventListener('change', e => { handleFiles(e.target.files, true); e.target.value = ''; });
 
-  function handleFiles(fileList, append) {
+  function isPdfFile(file) {
+    return file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('FileReader failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function pdfFileToDataUrls(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const dataUrls = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      dataUrls.push(canvas.toDataURL('image/jpeg', 0.92));
+    }
+    return dataUrls;
+  }
+
+  async function handleFiles(fileList, append) {
     if (!fileList || !fileList.length) return;
     if (!append) {
       imageSlots = [];
@@ -1072,26 +1101,29 @@
     hideError();
 
     const startIdx = imageSlots.length;
-    let loaded = 0;
-    const total = fileList.length;
 
-    for (let i = 0; i < total; i++) {
-      const file = fileList[i];
-      const reader = new FileReader();
-      const slotIdx = startIdx + i;
-      imageSlots[slotIdx] = { originalDataUrl: null, croppedDataUrl: null, croppedBase64: null };
-      reader.onload = e => {
-        imageSlots[slotIdx].originalDataUrl = e.target.result;
-        loaded++;
-        if (loaded === total) {
-          updatePreviewInfo();
-          renderThumbs();
-          document.getElementById('previewArea').classList.add('visible');
-          startCropQueue(startIdx);
+    try {
+      for (const file of fileList) {
+        if (isPdfFile(file)) {
+          const pageUrls = await pdfFileToDataUrls(file);
+          for (const url of pageUrls) {
+            imageSlots.push({ originalDataUrl: url, croppedDataUrl: null, croppedBase64: null });
+          }
+        } else {
+          const url = await readFileAsDataUrl(file);
+          imageSlots.push({ originalDataUrl: url, croppedDataUrl: null, croppedBase64: null });
         }
-      };
-      reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      showError('Datei konnte nicht gelesen werden: ' + (err.message || err));
+      return;
     }
+
+    if (imageSlots.length === startIdx) return;
+    updatePreviewInfo();
+    renderThumbs();
+    document.getElementById('previewArea').classList.add('visible');
+    startCropQueue(startIdx);
   }
 
   function updatePreviewInfo() {
