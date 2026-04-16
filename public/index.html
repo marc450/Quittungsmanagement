@@ -121,13 +121,15 @@
   .receipts-title { font-family: var(--serif); font-size: 20px; }
   .receipts-count { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
   .receipts-empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 4px; background: var(--cream); }
-  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; cursor: pointer; }
+  .receipt-row { display: grid; grid-template-columns: 50px 1fr auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 8px; background: white; transition: border-color 0.15s; cursor: pointer; min-height: 74px; box-sizing: border-box; }
   .receipt-row:hover { border-color: var(--accent); }
   .receipt-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s; }
   .receipt-thumb:hover { opacity: 0.75; }
   .receipt-info { min-width: 0; }
   .receipt-info .merchant { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .receipt-info .date-loc { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+  .receipt-info .date-loc > * { flex-shrink: 0; }
+  .receipt-info .receipt-desc { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; line-height: 14px; }
   .receipt-total { font-family: var(--serif); font-size: 18px; white-space: nowrap; }
   .receipt-status { font-size: 10px; }
 
@@ -150,7 +152,13 @@
   .pm-kreditkarte { background: #fce4ec; color: #c62828; }
   .pm-barzahlung { background: #e8f5e9; color: #2d7d46; }
   .pm-privatauslage { background: #e3f2fd; color: #1565c0; }
-  .cat-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; background: #f3e5f5; color: #6a1b9a; }
+  .cat-badge { padding: 1px 6px; border-radius: 2px; font-size: 10px; background: #eceff1; color: #546e7a; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-verpflegung { background: #fff3e0; color: #e65100; }
+  .cat-transport-fluege { background: #e3f2fd; color: #1565c0; }
+  .cat-unterkunft { background: #f3e5f5; color: #6a1b9a; }
+  .cat-material-einkauf { background: #fff9c4; color: #8d6e00; }
+  .cat-geschenke { background: #fce4ec; color: #ad1457; }
+  .cat-sonstiges { background: #eceff1; color: #546e7a; }
 
   /* Detail modal */
   .modal-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 24px; }
@@ -1396,7 +1404,7 @@ Rules:
     document.getElementById('resultVatRate').value = isCH && r.vat_rate != null ? r.vat_rate : '';
     if (r.items && r.items.length > 0) {
       document.getElementById('itemsSection').style.display = 'block';
-      document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?i.price.toFixed(2)+' '+(r.currency||''):'—'}</span></div>`).join('');
+      document.getElementById('itemsList').innerHTML = r.items.map(i => `<div class="item-row"><span>${esc(i.name||'—')}</span><span class="item-price">${i.price!=null?formatMoney(i.price)+' '+(r.currency||''):'—'}</span></div>`).join('');
     } else { document.getElementById('itemsSection').style.display = 'none'; }
     document.getElementById('analyzeBtn').style.display = 'none';
     document.getElementById('cropDoneNote').style.display = 'none';
@@ -1813,11 +1821,11 @@ Rules:
           <div class="date-loc">
             ${esc(formatDateStr(b.date))}
             <span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'')}</span>
-            <span class="cat-badge">${esc(b.category||'')}</span>
+            ${b.category ? `<span class="cat-badge cat-${categorySlug(b.category)}">${esc(b.category)}</span>` : ''}
           </div>
-          ${b.beschreibung ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(b.beschreibung)}</div>` : ''}
+          <div class="receipt-desc">${esc(b.beschreibung||'')}</div>
         </div>
-        <div class="receipt-total">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}${b.tip>0?`<div style="font-size:10px;color:var(--muted);font-weight:300">+ ${Number(b.tip).toFixed(2)} Trinkgeld</div>`:''}</div>
+        <div class="receipt-total">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}${b.tip>0?`<div style="font-size:10px;color:var(--muted);font-weight:300">+ ${formatMoney(b.tip)} Trinkgeld</div>`:''}</div>
         <div class="receipt-status">${b.abrechnung_id?'<span style="color:var(--success);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">✓ Abgerechnet</span>':''}</div>
       </div>`).join('');
 
@@ -1852,7 +1860,7 @@ Rules:
       document.getElementById('detailItemsList').innerHTML = items.map((it, i) =>
         `<div class="item-row" style="padding:8px 12px;background:${i%2?'white':'var(--cream)'}">`+
         `<span>${esc(it.name||it.description||'')}</span>`+
-        `<span class="item-price">${it.price!=null?Number(it.price).toFixed(2):''} ${esc(detailBeleg.currency||'')}</span></div>`
+        `<span class="item-price">${it.price!=null?formatMoney(it.price):''} ${esc(detailBeleg.currency||'')}</span></div>`
       ).join('');
       itemsSection.style.display = 'block';
     } else {
@@ -2147,8 +2155,8 @@ Rules:
     const chf = totals.get('CHF') || 0;
     const vat = filtered.reduce((s, b) => s + (Number(b.vat_amount) || 0), 0);
     document.getElementById('kpiCount').textContent = filtered.length;
-    document.getElementById('kpiTotalCHF').textContent = chf.toFixed(2);
-    document.getElementById('kpiVat').textContent = vat.toFixed(2);
+    document.getElementById('kpiTotalCHF').textContent = formatMoney(chf);
+    document.getElementById('kpiVat').textContent = formatMoney(vat);
 
     const bar = document.getElementById('kpiBar');
     bar.querySelectorAll('.kpi-item.kpi-currency').forEach(el => el.remove());
@@ -2158,7 +2166,7 @@ Rules:
     for (const [cur, total] of others) {
       const tile = document.createElement('div');
       tile.className = 'kpi-item kpi-currency';
-      tile.innerHTML = `<div class="kpi-value">${total.toFixed(2)}</div><div class="kpi-label">${esc(cur)}</div>`;
+      tile.innerHTML = `<div class="kpi-value">${formatMoney(total)}</div><div class="kpi-label">${esc(cur)}</div>`;
       bar.appendChild(tile);
     }
   }
@@ -2171,6 +2179,17 @@ Rules:
     return s;
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  const moneyFmt = new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function formatMoney(n) {
+    const v = Number(n);
+    if (!isFinite(v)) return '0.00';
+    return moneyFmt.format(v);
+  }
+  function categorySlug(c) {
+    return (c || '').toLowerCase()
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
   function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
   function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
 
@@ -2443,10 +2462,10 @@ Rules:
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" style="cursor:pointer" onclick="openImageViewer('${esc(b.image_url||'')}')" /></td>
         <td>${esc(b.merchant||'—')}</td>
         <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
-        <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
-        <td style="color:var(--muted)">${b.tip>0?Number(b.tip).toFixed(2):'—'}</td>
+        <td style="font-family:var(--serif)">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</td>
+        <td style="color:var(--muted)">${b.tip>0?formatMoney(b.tip):'—'}</td>
         <td><span class="pm-badge pm-${(b.payment_method||'').toLowerCase()}">${esc(b.payment_method||'—')}</span></td>
-        <td><span class="cat-badge">${esc(b.category||'—')}</span></td>
+        <td><span class="cat-badge${b.category?' cat-'+categorySlug(b.category):''}">${esc(b.category||'—')}</span></td>
         <td style="color:var(--muted);font-size:11px">${b.folder_id && adminFolderMap[b.folder_id] ? '📁 '+esc(adminFolderMap[b.folder_id]) : '—'}</td>
       </tr>`).join('')}</tbody>
     </table>`;
@@ -2591,10 +2610,10 @@ Rules:
       return `<div class="recon-row ${rowClass}">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
-          <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? tx.amount_original.toFixed(2) : '') : ''}</div>
+          <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
         </div>
         <div style="text-align:center">
-          <div class="recon-amount">${tx.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF</div>
+          <div class="recon-amount">${tx.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF</div>
           <div class="recon-arrow">${isMatched ? '✅' : '⚠️'}</div>
         </div>
         <div class="recon-right">
@@ -2653,7 +2672,7 @@ Rules:
     const available = belege.filter(b => !usedIds.has(b.id));
 
     const bannerHtml = `<div class="assign-banner">
-      <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? tx.amount_chf.toFixed(2) : '—'} CHF · ${esc(tx?.date || '—')}</span>
+      <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF · ${esc(tx?.date || '—')}</span>
       <button onclick="cancelAssigning()" class="btn-logout" style="font-size:10px;padding:3px 10px">Abbrechen</button>
     </div>`;
 
@@ -2668,7 +2687,7 @@ Rules:
         <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
         <td>${esc(b.merchant||'—')}</td>
         <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
-        <td style="font-family:var(--serif)">${b.amount!=null?Number(b.amount).toFixed(2):'—'} ${esc(b.currency||'')}</td>
+        <td style="font-family:var(--serif)">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</td>
         <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
         <td><button onclick="confirmAssign('${b.id}')" class="btn-assign-beleg">Zuordnen</button></td>
       </tr>`).join('')}</tbody>
