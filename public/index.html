@@ -329,6 +329,9 @@
 
     .receipts-section { margin-top: 24px; padding-top: 20px; }
     .receipts-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .kpi-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; padding-bottom: 4px; margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; mask-image: linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%); }
+    .kpi-bar::-webkit-scrollbar { display: none; }
+    .kpi-item { flex: 0 0 auto; min-width: 88px; scroll-snap-align: start; }
     .receipt-row { grid-template-columns: 1fr auto; gap: 8px; padding: 12px; cursor: pointer; }
     .receipt-thumb { display: none; }
     .receipt-status { display: none; }
@@ -874,14 +877,6 @@
         <div class="kpi-item">
           <div class="kpi-value" id="kpiTotalCHF">0.00</div>
           <div class="kpi-label">CHF</div>
-        </div>
-        <div class="kpi-item" id="kpiEurBox" style="display:none">
-          <div class="kpi-value" id="kpiTotalEUR">0.00</div>
-          <div class="kpi-label">EUR</div>
-        </div>
-        <div class="kpi-item" id="kpiUsdBox" style="display:none">
-          <div class="kpi-value" id="kpiTotalUSD">0.00</div>
-          <div class="kpi-label">USD</div>
         </div>
         <div class="kpi-item">
           <div class="kpi-value" id="kpiVat">0.00</div>
@@ -2143,17 +2138,29 @@ Rules:
   });
 
   function updateKpiBar(filtered) {
-    const chf = filtered.filter(b => (b.currency||'CHF').toUpperCase() === 'CHF').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
-    const eur = filtered.filter(b => (b.currency||'').toUpperCase() === 'EUR').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
-    const usd = filtered.filter(b => (b.currency||'').toUpperCase() === 'USD').reduce((s,b) => s + (Number(b.amount)||0) + (Number(b.tip)||0), 0);
-    const vat = filtered.reduce((s,b) => s + (Number(b.vat_amount)||0), 0);
+    const totals = new Map();
+    for (const b of filtered) {
+      const cur = (b.currency || 'CHF').toUpperCase();
+      const sum = (Number(b.amount) || 0) + (Number(b.tip) || 0);
+      totals.set(cur, (totals.get(cur) || 0) + sum);
+    }
+    const chf = totals.get('CHF') || 0;
+    const vat = filtered.reduce((s, b) => s + (Number(b.vat_amount) || 0), 0);
     document.getElementById('kpiCount').textContent = filtered.length;
     document.getElementById('kpiTotalCHF').textContent = chf.toFixed(2);
     document.getElementById('kpiVat').textContent = vat.toFixed(2);
-    const eurBox = document.getElementById('kpiEurBox');
-    const usdBox = document.getElementById('kpiUsdBox');
-    if (eur > 0) { eurBox.style.display = ''; document.getElementById('kpiTotalEUR').textContent = eur.toFixed(2); } else { eurBox.style.display = 'none'; }
-    if (usd > 0) { usdBox.style.display = ''; document.getElementById('kpiTotalUSD').textContent = usd.toFixed(2); } else { usdBox.style.display = 'none'; }
+
+    const bar = document.getElementById('kpiBar');
+    bar.querySelectorAll('.kpi-item.kpi-currency').forEach(el => el.remove());
+    const others = [...totals.entries()]
+      .filter(([cur, total]) => cur !== 'CHF' && total > 0)
+      .sort((a, b) => b[1] - a[1]);
+    for (const [cur, total] of others) {
+      const tile = document.createElement('div');
+      tile.className = 'kpi-item kpi-currency';
+      tile.innerHTML = `<div class="kpi-value">${total.toFixed(2)}</div><div class="kpi-label">${esc(cur)}</div>`;
+      bar.appendChild(tile);
+    }
   }
 
   function formatDateStr(s) {
