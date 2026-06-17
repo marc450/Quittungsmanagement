@@ -285,6 +285,22 @@
   .recon-row.unmatched { border-left: 3px solid var(--accent); background: #fffaf8; }
   .recon-row.assigning { border-left: 3px solid #1a56db; background: #e8f0fe; animation: pulse-assign 1.5s ease infinite; }
   .recon-row.private { border-left: 3px solid #1565c0; background: #f1f7fd; }
+  .recon-row.recon-drop-target { outline: 2px dashed #1a56db; outline-offset: -2px; background: #e8f0fe; }
+
+  /* Full-width statement detail: sticky sidebar of draggable receipts + transactions */
+  .recon-detail-fullbleed { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); padding: 0 32px; box-sizing: border-box; }
+  .recon-detail-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .recon-sidebar { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--cream); border: 1px solid var(--border); border-radius: 4px; padding: 14px; }
+  .recon-sidebar-title { font-family: var(--serif); font-size: 15px; line-height: 1.3; margin-bottom: 4px; }
+  .recon-sidebar-hint { font-size: 11px; color: var(--muted); margin-bottom: 14px; }
+  .recon-beleg-card { display: flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 3px; background: white; margin-bottom: 8px; cursor: grab; transition: box-shadow 0.12s, border-color 0.12s; }
+  .recon-beleg-card:hover { border-color: var(--muted); box-shadow: 0 1px 5px rgba(0,0,0,0.07); }
+  .recon-beleg-card:active { cursor: grabbing; }
+  .recon-beleg-card.dragging { opacity: 0.4; }
+  .recon-card-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 2px; flex-shrink: 0; background: var(--cream); }
+  .recon-card-body { min-width: 0; flex: 1; }
+  .recon-card-merchant { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recon-card-meta { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .recon-statement-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 6px; background: white; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
   .recon-statement-row:hover { background: var(--cream); border-color: var(--muted); }
   @keyframes pulse-assign { 0%,100% { box-shadow: 0 0 0 0 rgba(26,86,219,0.15); } 50% { box-shadow: 0 0 0 6px rgba(26,86,219,0.08); } }
@@ -674,9 +690,9 @@
         </div>
       </div>
 
-      <!-- Detail: single statement reconciliation -->
+      <!-- Detail: single statement reconciliation (full-width, sticky receipt sidebar) -->
       <div id="userReconDetail" style="display:none">
-        <div class="admin-section">
+        <div class="recon-detail-fullbleed">
           <button onclick="showUserReconOverview()" class="btn-logout" style="font-size:10px;padding:4px 12px;margin-bottom:16px">← Zurück zur Übersicht</button>
           <div class="admin-section-title" id="userReconDetailTitle">Abrechnung</div>
           <div id="userReconSummary" style="display:none;margin-bottom:20px">
@@ -695,9 +711,13 @@
               </div>
             </div>
           </div>
-          <div id="userReconBelegeContainer"></div>
-          <div id="userReconResults"></div>
-          <div id="userReconExtra"></div>
+          <div class="recon-detail-layout">
+            <aside class="recon-sidebar" id="userReconExtra"></aside>
+            <div style="min-width:0">
+              <div id="userReconBelegeContainer"></div>
+              <div id="userReconResults"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -809,8 +829,9 @@
           <div id="adminReconList"><div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Abrechnungen zu sehen</div></div>
         </div>
 
-        <!-- Detail: single statement reconciliation -->
+        <!-- Detail: single statement reconciliation (full-width, sticky receipt sidebar) -->
         <div id="adminReconDetail" style="display:none">
+          <div class="recon-detail-fullbleed">
           <button onclick="showAdminReconOverview()" class="btn-logout" style="font-size:10px;padding:4px 12px;margin-bottom:16px">← Zurück zur Übersicht</button>
           <div class="admin-section-title" id="adminReconDetailTitle">Abrechnung</div>
           <div id="reconSummary" style="display:none;margin-bottom:20px">
@@ -829,9 +850,14 @@
               </div>
             </div>
           </div>
-          <div id="adminReconBelegeContainer"></div>
-          <div id="reconResults"></div>
-          <div id="adminReconExtra"></div>
+          <div class="recon-detail-layout">
+            <aside class="recon-sidebar" id="adminReconExtra"></aside>
+            <div style="min-width:0">
+              <div id="adminReconBelegeContainer"></div>
+              <div id="reconResults"></div>
+            </div>
+          </div>
+          </div>
         </div>
       </div>
       </div><!-- /adminSubReconPanel -->
@@ -2970,8 +2996,9 @@ Rules:
   }
 
   // Render the receipts that fall inside the statement's date window but are not
-  // assigned to it — i.e. candidates the user may still need to account for.
-  function renderPeriodUnassigned(containerEl, results, belegeArr, folderMap) {
+  // assigned to it, as a sticky sidebar of cards the user can drag onto a
+  // transaction row to assign. `scope` is 'user' or 'admin'.
+  function renderPeriodUnassigned(containerEl, results, belegeArr, folderMap, scope) {
     if (!containerEl) return;
     const { min, max } = periodFromResults(results);
     if (!min || !max) { containerEl.innerHTML = ''; return; }
@@ -2984,22 +3011,70 @@ Rules:
       })
       .sort((a, b) => (normalizeDate(a.date) || 0) - (normalizeDate(b.date) || 0));
     const fmt = d => d.toLocaleDateString('de-CH');
-    const head = `<div class="admin-section-title" style="font-size:13px;margin:28px 0 12px">Nicht zugeordnete Belege im Zeitraum ${fmt(min)} – ${fmt(max)} (${inRange.length})</div>`;
+    const head = `<div class="recon-sidebar-title">Nicht zugeordnete Belege<br>${fmt(min)} – ${fmt(max)} (${inRange.length})</div>`;
     if (!inRange.length) {
-      containerEl.innerHTML = head + '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Alle Belege in diesem Zeitraum sind zugeordnet</div>';
+      containerEl.innerHTML = head + '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px;padding:16px">Alle Belege in diesem Zeitraum sind zugeordnet</div>';
       return;
     }
-    containerEl.innerHTML = head + `<table class="admin-belege-table">
-      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlung</th><th>Einsatz</th></tr></thead>
-      <tbody>${inRange.map(b => `<tr>
-        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
-        <td>${esc(b.merchant||'—')}</td>
-        <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
-        <td style="font-family:var(--serif)">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</td>
-        <td style="color:var(--muted);font-size:11px">${esc(b.payment_method||'—')}</td>
-        <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
-      </tr>`).join('')}</tbody>
-    </table>`;
+    containerEl.innerHTML = head
+      + '<div class="recon-sidebar-hint">Ziehe einen Beleg auf eine Transaktion, um ihn zuzuordnen.</div>'
+      + inRange.map(b => {
+        const folder = b.folder_id && folderMap && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
+        return `<div class="recon-beleg-card" draggable="true" ondragstart="reconDragStart(event,'${b.id}','${scope}')" ondragend="reconDragEnd(event)">
+          <img class="recon-card-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
+          <div class="recon-card-body">
+            <div class="recon-card-merchant">${esc(b.merchant||'—')}</div>
+            <div class="recon-card-meta">${esc(formatDateStr(b.date))} · ${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</div>
+            <div class="recon-card-meta">${esc(b.payment_method||'—')}${folder ? ' · 📁 '+esc(folder) : ''}</div>
+          </div>
+        </div>`;
+      }).join('');
+  }
+
+  // ---- Drag a sidebar receipt onto a transaction row to assign it ----
+  let reconDragBelegId = null, reconDragScope = null;
+
+  function reconCtx(scope) {
+    if (scope === 'admin') return { state: reconState, belege: reconState ? reconState.belege : [], persist: persistAdminStatement, render: renderReconResults };
+    return { state: userReconState, belege: belege, persist: persistUserStatement, render: renderUserReconResults };
+  }
+
+  function reconDragStart(e, belegId, scope) {
+    reconDragBelegId = belegId;
+    reconDragScope = scope;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', belegId); } catch (_) {}
+    e.currentTarget.classList.add('dragging');
+  }
+
+  function reconDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+  }
+
+  function reconRowDragOver(e) {
+    if (!reconDragBelegId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('recon-drop-target');
+  }
+
+  function reconRowDragLeave(e) {
+    e.currentTarget.classList.remove('recon-drop-target');
+  }
+
+  function reconRowDrop(e, idx, scope) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('recon-drop-target');
+    if (!reconDragBelegId || reconDragScope !== scope) return;
+    const ctx = reconCtx(scope);
+    if (!ctx.state || !ctx.state.results[idx]) return;
+    const beleg = (ctx.belege || []).find(b => b.id === reconDragBelegId);
+    reconDragBelegId = null; reconDragScope = null;
+    if (!beleg) return;
+    ctx.state.results[idx].beleg = beleg;
+    ctx.state.results[idx].status = 'matched';
+    ctx.render();
+    ctx.persist();
   }
 
   function renderReconResults() {
@@ -3013,7 +3088,7 @@ Rules:
     document.getElementById('reconMatchedCount').textContent = matched;
     document.getElementById('reconUnmatchedCount').textContent = unmatched;
     summaryEl.style.display = 'block';
-    renderPeriodUnassigned(document.getElementById('adminReconExtra'), results, reconState.belege, folderMap);
+    renderPeriodUnassigned(document.getElementById('adminReconExtra'), results, reconState.belege, folderMap, 'admin');
 
     if (!results.length) {
       resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
@@ -3027,7 +3102,7 @@ Rules:
       const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
       const rowClass = (isMatched ? 'matched' : reconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
-      return `<div class="recon-row ${rowClass}">
+      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event)" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'admin')">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
@@ -3426,7 +3501,7 @@ Rules:
     document.getElementById('userReconMatchedCount').textContent = matched;
     document.getElementById('userReconUnmatchedCount').textContent = unmatched;
     summaryEl.style.display = 'block';
-    renderPeriodUnassigned(document.getElementById('userReconExtra'), results, belege, folderMap);
+    renderPeriodUnassigned(document.getElementById('userReconExtra'), results, belege, folderMap, 'user');
 
     if (!results.length) {
       resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
@@ -3440,7 +3515,7 @@ Rules:
       const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
       const rowClass = (isMatched ? 'matched' : userReconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
-      return `<div class="recon-row ${rowClass}">
+      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event)" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'user')">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
