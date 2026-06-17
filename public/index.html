@@ -14,8 +14,22 @@
     --ink: #1a1a1a; --paper: #f5f0e8; --cream: #ede8dc; --accent: #c8440a;
     --accent-light: #f2ece3; --muted: #8a8070; --border: #d4ccbc;
     --success: #2d7d46; --mono: 'DM Mono', monospace; --serif: 'DM Serif Display', serif;
+    --btn-h: 38px;
   }
   body { background: var(--paper); color: var(--ink); font-family: var(--mono); font-weight: 300; min-height: 100vh; font-size: 13px; line-height: 1.6; }
+
+  /* Standard rectangular action buttons share one height (--btn-h). box-sizing
+     is border-box globally, so the fixed height holds regardless of each
+     button's padding/font-size. Round controls (.fab, icon buttons), pill
+     toggles (.folder-chip) and the compact in-table buttons (.btn-sm,
+     .btn-assign-beleg) intentionally opt out. */
+  .btn-login, .btn-analyze, .btn-primary, .btn-danger, .btn-logout,
+  .btn-crop-cancel, .btn-crop-confirm, .btn-hamburger, .tab-btn {
+    height: var(--btn-h); min-height: var(--btn-h);
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  /* Compact in-table buttons keep their own (smaller) size. */
+  .btn-analyze.btn-sm, .btn-logout.btn-sm { height: auto; min-height: 0; }
   img { image-orientation: from-image; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
 
@@ -270,6 +284,8 @@
   .recon-row.matched { border-left: 3px solid var(--success); }
   .recon-row.unmatched { border-left: 3px solid var(--accent); background: #fffaf8; }
   .recon-row.assigning { border-left: 3px solid #1a56db; background: #e8f0fe; animation: pulse-assign 1.5s ease infinite; }
+  .recon-statement-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 6px; background: white; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+  .recon-statement-row:hover { background: var(--cream); border-color: var(--muted); }
   @keyframes pulse-assign { 0%,100% { box-shadow: 0 0 0 0 rgba(26,86,219,0.15); } 50% { box-shadow: 0 0 0 6px rgba(26,86,219,0.08); } }
   .assign-banner { position: sticky; top: 0; z-index: 10; padding: 10px 16px; background: #e8f0fe; border: 1.5px solid #c0d0f0; border-radius: 4px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #1a56db; }
   .btn-assign-beleg { font-family: var(--mono); font-size: 10px; padding: 4px 10px; background: #1a56db; color: white; border: none; border-radius: 3px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: background 0.15s; }
@@ -309,7 +325,7 @@
     .logo { font-size: 20px; }
     .header-right { gap: 8px; }
     .desktop-only { display: none !important; }
-    .btn-hamburger { display: inline-block; }
+    .btn-hamburger { display: inline-flex; }
     .fab { display: flex; align-items: center; justify-content: center; }
     .upload-section { display: none; }
     .upload-section.mobile-visible { display: block; }
@@ -632,39 +648,52 @@
 
     <!-- KK-Abrechnung panel (self-service, all users) -->
     <div id="userReconPanel" style="display:none">
-      <div class="admin-section">
-        <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 20px;line-height:1.5">Lade Deine Kreditkartenabrechnung als PDF hoch. Die Transaktionen werden automatisch mit Deinen erfassten Belegen abgeglichen, damit Du siehst, welche Quittungen noch fehlen.</p>
-        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:20px">
-          <label class="btn-analyze" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
-            PDF hochladen
-            <input type="file" id="userStatementFileInput" accept=".pdf" style="display:none" />
-          </label>
-        </div>
-        <div id="userReconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
-            <span id="userReconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
+      <!-- Overview: list of saved statements -->
+      <div id="userReconOverview">
+        <div class="admin-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+            <div class="admin-section-title" style="margin:0">Kreditkartenabrechnungen</div>
+            <label class="btn-analyze" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
+              + Abrechnung hochladen
+              <input type="file" id="userStatementFileInput" accept=".pdf" style="display:none" />
+            </label>
           </div>
-        </div>
-        <div id="userReconSummary" style="display:none;margin-bottom:20px">
-          <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
-              <div style="font-family:var(--serif);font-size:20px" id="userReconTotalCount">0</div>
-            </div>
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
-              <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="userReconMatchedCount">0</div>
-            </div>
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
-              <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="userReconUnmatchedCount">0</div>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 20px;line-height:1.5">Lade Deine Kreditkartenabrechnung als PDF hoch. Sie wird gespeichert und automatisch mit Deinen erfassten Belegen abgeglichen. Klicke eine Abrechnung an, um Belege zuzuordnen.</p>
+          <div id="userReconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
+              <span id="userReconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
             </div>
           </div>
+          <div id="userReconError" style="display:none;padding:12px 16px;background:#fff0ee;border:1px solid #f0c0b8;border-radius:4px;margin-bottom:20px;font-size:12px;color:var(--accent)"></div>
+          <div id="userReconList"><div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Noch keine Abrechnungen hochgeladen</div></div>
         </div>
-        <div id="userReconBelegeContainer"></div>
-        <div id="userReconResults"></div>
+      </div>
+
+      <!-- Detail: single statement reconciliation -->
+      <div id="userReconDetail" style="display:none">
+        <div class="admin-section">
+          <button onclick="showUserReconOverview()" class="btn-logout" style="font-size:10px;padding:4px 12px;margin-bottom:16px">← Zurück zur Übersicht</button>
+          <div class="admin-section-title" id="userReconDetailTitle">Abrechnung</div>
+          <div id="userReconSummary" style="display:none;margin-bottom:20px">
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
+                <div style="font-family:var(--serif);font-size:20px" id="userReconTotalCount">0</div>
+              </div>
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
+                <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="userReconMatchedCount">0</div>
+              </div>
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
+                <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="userReconUnmatchedCount">0</div>
+              </div>
+            </div>
+          </div>
+          <div id="userReconBelegeContainer"></div>
+          <div id="userReconResults"></div>
+        </div>
       </div>
     </div>
 
@@ -2373,6 +2402,7 @@ Rules:
       const sel = document.getElementById('adminUserSelect');
       if (sel.value) loadAdminBelege();
     }
+    if (tab === 'recon') { showUserReconOverview(); loadUserStatements(); }
   }
 
   async function getAdminAuthHeader() {
@@ -2401,8 +2431,8 @@ Rules:
         <td><span class="role-badge role-${u.role === 'admin' ? 'admin' : 'user'}">${u.role === 'admin' ? 'Admin' : 'Benutzer:in'}</span></td>
         <td style="color:var(--muted)">${u.created_at ? new Date(u.created_at).toLocaleDateString('de-CH') : '—'}</td>
         <td style="white-space:nowrap;text-align:right">
-          <button onclick="adminChangePassword('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout" style="font-size:10px;padding:3px 8px">Passwort</button>
-          ${isSelf(u.id) ? '' : `<button onclick="adminDeleteUser('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout" style="font-size:10px;padding:3px 8px;color:var(--accent);border-color:#f0c0b8">Löschen</button>`}
+          <button onclick="adminChangePassword('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout btn-sm" style="font-size:10px;padding:3px 8px">Passwort</button>
+          ${isSelf(u.id) ? '' : `<button onclick="adminDeleteUser('${u.id}','${esc(u.full_name || u.email)}')" class="btn-logout btn-sm" style="font-size:10px;padding:3px 8px;color:var(--accent);border-color:#f0c0b8">Löschen</button>`}
         </td>
       </tr>`).join('');
   }
@@ -2776,7 +2806,7 @@ Rules:
           ` : reconAssigningIdx === idx ? `
             <div style="font-size:11px;color:#1a56db;font-weight:500">← Quittung oben auswählen</div>
           ` : `
-            <button onclick="startAssigning(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
+            <button onclick="startAssigning(${idx})" class="btn-analyze btn-sm" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
           `}
         </div>
       </div>`;
@@ -2823,7 +2853,7 @@ Rules:
 
     const bannerHtml = `<div class="assign-banner">
       <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF · ${esc(tx?.date || '—')}</span>
-      <button onclick="cancelAssigning()" class="btn-logout" style="font-size:10px;padding:3px 10px">Abbrechen</button>
+      <button onclick="cancelAssigning()" class="btn-logout btn-sm" style="font-size:10px;padding:3px 10px">Abbrechen</button>
     </div>`;
 
     if (!available.length) {
@@ -2925,7 +2955,8 @@ Rules:
   // Mirrors the admin flow but reconciles against the signed-in user's own
   // belege/folders (already loaded into the global `belege` / `folders`), and
   // parses via the non-admin /api/parse-statement endpoint.
-  let userReconState = null; // { results, belege, folderMap }
+  let userStatements = [];   // saved kk_statements rows shown in the overview
+  let userReconState = null; // open statement: { statementId, name, results, folderMap }
   let userReconAssigningIdx = null;
 
   document.getElementById('userStatementFileInput').addEventListener('change', async e => {
@@ -2935,16 +2966,135 @@ Rules:
     e.target.value = '';
   });
 
+  function showUserReconError(msg) {
+    const el = document.getElementById('userReconError');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function showUserReconOverview() {
+    userReconAssigningIdx = null;
+    document.getElementById('userReconDetail').style.display = 'none';
+    document.getElementById('userReconOverview').style.display = 'block';
+    renderUserStatementList();
+  }
+
+  function showUserReconDetail() {
+    showUserReconError('');
+    document.getElementById('userReconOverview').style.display = 'none';
+    document.getElementById('userReconDetail').style.display = 'block';
+  }
+
+  // Serialize an in-memory recon row to the compact shape stored in the
+  // kk_statements.transactions jsonb (the assigned beleg is kept as an id so it
+  // stays valid as belege are edited).
+  function serializeReconTx(r) {
+    const tx = r.tx || {};
+    return {
+      date: tx.date ?? null,
+      merchant: tx.merchant ?? null,
+      amount_chf: tx.amount_chf ?? null,
+      currency_original: tx.currency_original ?? null,
+      amount_original: tx.amount_original ?? null,
+      beleg_id: r.beleg ? r.beleg.id : null,
+    };
+  }
+
+  // Resolve stored transactions against the user's current belege.
+  function buildReconResults(transactions) {
+    const byId = Object.fromEntries(belege.map(b => [b.id, b]));
+    return (transactions || []).map(tx => {
+      const beleg = tx.beleg_id ? (byId[tx.beleg_id] || null) : null;
+      return { tx, beleg, status: beleg ? 'matched' : 'unmatched' };
+    });
+  }
+
+  async function loadUserStatements() {
+    const listEl = document.getElementById('userReconList');
+    try {
+      // Refresh belege so the matched/missing counts reflect the latest receipts.
+      await loadBelege();
+      const { data, error } = await sb.from('kk_statements')
+        .select('id,name,transactions,created_at')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      userStatements = data || [];
+      renderUserStatementList();
+    } catch (err) {
+      listEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Konnte Abrechnungen nicht laden: ${esc(err.message || String(err))}</div>`;
+    }
+  }
+
+  function renderUserStatementList() {
+    const listEl = document.getElementById('userReconList');
+    if (!userStatements.length) {
+      listEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Noch keine Abrechnungen hochgeladen</div>';
+      return;
+    }
+    const ids = new Set(belege.map(b => b.id));
+    listEl.innerHTML = userStatements.map(s => {
+      const txs = Array.isArray(s.transactions) ? s.transactions : [];
+      const total = txs.length;
+      const matched = txs.filter(t => t.beleg_id && ids.has(t.beleg_id)).length;
+      const missing = total - matched;
+      const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString('de-CH') : '';
+      return `<div class="recon-statement-row" onclick="openUserStatement('${s.id}')">
+        <div style="min-width:0;flex:1">
+          <div class="recon-merchant" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name || 'Abrechnung')}</div>
+          <div class="recon-date">${dateStr}${dateStr ? ' · ' : ''}${total} Transaktion${total === 1 ? '' : 'en'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+          <span style="font-size:11px;color:#2d7d46;font-weight:500">${matched} zugeordnet</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:500">${missing} fehlend</span>
+          <button onclick="event.stopPropagation();deleteUserStatement('${s.id}')" class="btn-logout btn-sm" style="font-size:10px;padding:3px 10px;color:var(--accent);border-color:#f0c0b8">Löschen</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function openUserStatement(id) {
+    const s = userStatements.find(x => x.id === id);
+    if (!s) return;
+    await Promise.all([loadBelege(), loadFolders()]);
+    const folderMap = Object.fromEntries((folders || []).map(f => [f.id, f.name]));
+    userReconState = {
+      statementId: s.id,
+      name: s.name,
+      results: buildReconResults(Array.isArray(s.transactions) ? s.transactions : []),
+      folderMap,
+    };
+    userReconAssigningIdx = null;
+    document.getElementById('userReconBelegeContainer').innerHTML = '';
+    document.getElementById('userReconDetailTitle').textContent = s.name || 'Abrechnung';
+    showUserReconDetail();
+    renderUserReconResults();
+  }
+
+  async function deleteUserStatement(id) {
+    if (!await nativeConfirm('Diese Abrechnung unwiderruflich löschen?', 'Abrechnung löschen')) return;
+    const { error } = await sb.from('kk_statements').delete().eq('id', id);
+    if (error) { showUserReconError('Löschen fehlgeschlagen: ' + error.message); return; }
+    await loadUserStatements();
+  }
+
+  // Persist the open statement's current assignments back to the DB.
+  async function persistUserStatement() {
+    if (!userReconState) return;
+    const txRows = userReconState.results.map(serializeReconTx);
+    const cached = userStatements.find(s => s.id === userReconState.statementId);
+    if (cached) cached.transactions = txRows;
+    const { error } = await sb.from('kk_statements')
+      .update({ transactions: txRows })
+      .eq('id', userReconState.statementId);
+    if (error) showUserReconError('Speichern fehlgeschlagen: ' + error.message);
+  }
+
   async function runUserReconciliation(file) {
     const statusEl = document.getElementById('userReconStatus');
     const statusText = document.getElementById('userReconStatusText');
-    const summaryEl = document.getElementById('userReconSummary');
-    const resultsEl = document.getElementById('userReconResults');
-    userReconAssigningIdx = null;
-    document.getElementById('userReconBelegeContainer').innerHTML = '';
+    showUserReconError('');
     statusEl.style.display = 'block';
-    summaryEl.style.display = 'none';
-    resultsEl.innerHTML = '';
 
     try {
       statusText.textContent = 'PDF wird gelesen…';
@@ -2981,18 +3131,23 @@ Rules:
       await Promise.all([loadBelege(), loadFolders()]);
 
       statusText.textContent = 'Abgleich läuft…';
-      const folderMap = Object.fromEntries((folders || []).map(f => [f.id, f.name]));
-      userReconState = {
-        results: matchTransactions(transactions, belege),
-        belege: belege.slice(),
-        folderMap,
-      };
+      const matchResults = matchTransactions(transactions, belege);
+      const txRows = matchResults.map(serializeReconTx);
+      const name = (file.name || 'Kreditkartenabrechnung').replace(/\.pdf$/i, '').trim() || 'Kreditkartenabrechnung';
+
+      statusText.textContent = 'Wird gespeichert…';
+      const { data: inserted, error } = await sb.from('kk_statements')
+        .insert({ user_id: currentUser.id, name, transactions: txRows })
+        .select('id,name,transactions,created_at')
+        .single();
+      if (error) throw error;
 
       statusEl.style.display = 'none';
-      renderUserReconResults();
+      await loadUserStatements();
+      await openUserStatement(inserted.id);
     } catch (err) {
       statusEl.style.display = 'none';
-      resultsEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Fehler: ${esc(err.message)}</div>`;
+      showUserReconError('Fehler: ' + (err.message || err));
     }
   }
 
@@ -3031,14 +3186,15 @@ Rules:
         <div class="recon-right">
           ${isMatched ? `
             <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
-            <div>
+            <div style="min-width:0">
               <div class="recon-merchant">${esc(b.merchant||'—')}</div>
               <div class="recon-match-info">${esc(formatDateStr(b.date))}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
             </div>
+            <button onclick="unassignUserBeleg(${idx})" class="btn-logout btn-sm" style="font-size:9px;padding:2px 8px;margin-left:auto;color:var(--accent);border-color:#f0c0b8">Entfernen</button>
           ` : userReconAssigningIdx === idx ? `
             <div style="font-size:11px;color:#1a56db;font-weight:500">↑ Quittung oben auswählen</div>
           ` : `
-            <button onclick="startUserAssigning(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
+            <button onclick="startUserAssigning(${idx})" class="btn-analyze btn-sm" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
           `}
         </div>
       </div>`;
@@ -3060,13 +3216,22 @@ Rules:
 
   function confirmUserAssign(belegId) {
     if (userReconAssigningIdx == null || !userReconState) return;
-    const beleg = userReconState.belege.find(b => b.id === belegId);
+    const beleg = belege.find(b => b.id === belegId);
     if (!beleg) return;
     userReconState.results[userReconAssigningIdx].beleg = beleg;
     userReconState.results[userReconAssigningIdx].status = 'matched';
     userReconAssigningIdx = null;
     document.getElementById('userReconBelegeContainer').innerHTML = '';
     renderUserReconResults();
+    persistUserStatement();
+  }
+
+  function unassignUserBeleg(rowIdx) {
+    if (!userReconState || !userReconState.results[rowIdx]) return;
+    userReconState.results[rowIdx].beleg = null;
+    userReconState.results[rowIdx].status = 'unmatched';
+    renderUserReconResults();
+    persistUserStatement();
   }
 
   function renderUserAssignBelege() {
@@ -3077,12 +3242,12 @@ Rules:
     }
     const tx = userReconState.results[userReconAssigningIdx]?.tx;
     const usedIds = new Set(userReconState.results.filter(r => r.beleg).map(r => r.beleg.id));
-    const { belege, folderMap } = userReconState;
+    const { folderMap } = userReconState;
     const available = belege.filter(b => !usedIds.has(b.id));
 
     const bannerHtml = `<div class="assign-banner">
       <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF · ${esc(tx?.date || '—')}</span>
-      <button onclick="cancelUserAssigning()" class="btn-logout" style="font-size:10px;padding:3px 10px">Abbrechen</button>
+      <button onclick="cancelUserAssigning()" class="btn-logout btn-sm" style="font-size:10px;padding:3px 10px">Abbrechen</button>
     </div>`;
 
     if (!available.length) {
