@@ -284,6 +284,7 @@
   .recon-row.matched { border-left: 3px solid var(--success); }
   .recon-row.unmatched { border-left: 3px solid var(--accent); background: #fffaf8; }
   .recon-row.assigning { border-left: 3px solid #1a56db; background: #e8f0fe; animation: pulse-assign 1.5s ease infinite; }
+  .recon-row.private { border-left: 3px solid #1565c0; background: #f1f7fd; }
   .recon-statement-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 3px; margin-bottom: 6px; background: white; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
   .recon-statement-row:hover { background: var(--cream); border-color: var(--muted); }
   @keyframes pulse-assign { 0%,100% { box-shadow: 0 0 0 0 rgba(26,86,219,0.15); } 50% { box-shadow: 0 0 0 6px rgba(26,86,219,0.08); } }
@@ -3023,11 +3024,12 @@ Rules:
       const tx = r.tx;
       const b = r.beleg;
       const isMatched = r.status === 'matched';
+      const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
-      const rowClass = isMatched ? 'matched' : reconAssigningIdx === idx ? 'assigning' : 'unmatched';
+      const rowClass = (isMatched ? 'matched' : reconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
       return `<div class="recon-row ${rowClass}">
         <div class="recon-left">
-          <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
+          <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
         </div>
         <div style="text-align:center">
@@ -3435,11 +3437,12 @@ Rules:
       const tx = r.tx;
       const b = r.beleg;
       const isMatched = r.status === 'matched';
+      const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
-      const rowClass = isMatched ? 'matched' : userReconAssigningIdx === idx ? 'assigning' : 'unmatched';
+      const rowClass = (isMatched ? 'matched' : userReconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
       return `<div class="recon-row ${rowClass}">
         <div class="recon-left">
-          <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
+          <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
         </div>
         <div style="text-align:center">
