@@ -171,17 +171,18 @@ app.post('/api/admin/parse-statement', async (req, res) => {
   const totalBytes = images.reduce((n, im) => n + (im.base64?.length || 0), 0);
   console.log(`[parse-statement] start: ${images.length} page(s), ~${(totalBytes / 1.37 / 1e6).toFixed(1)}MB image data`);
   const t0 = Date.now();
-  try {
-    const allTransactions = [];
-    for (let pi = 0; pi < images.length; pi++) {
-      const img = images[pi];
-      const pageStart = Date.now();
-      const payload = {
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: img.media_type || "image/png", data: img.base64 } },
-          { type: "text", text: `You are a credit card statement parser. Extract ALL transaction lines from this bank statement image.
+
+  // Analyse one page. Pages run in parallel (see Promise.all below) so the
+  // total time stays near the slowest single page — Railway drops HTTP/2
+  // connections after ~60s, and running pages sequentially blew past that.
+  async function parsePage(img, pi) {
+    const pageStart = Date.now();
+    const payload = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 4000,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: img.media_type || "image/png", data: img.base64 } },
+        { type: "text", text: `You are a credit card statement parser. Extract ALL transaction lines from this bank statement image.
 
 Return ONLY a raw JSON array — no markdown, no explanation, no code fences. Start with [ and end with ].
 
@@ -198,29 +199,30 @@ Rules:
 - Skip header rows, subtotals, and summary lines (like "Übertrag Karte", "Total Karte")
 - Each real purchase/payment is one entry. Do NOT merge multiple transactions.
 - If a transaction has a currency conversion line below it, that's part of the same transaction — do not create a separate entry for the conversion line.` }
-        ]}]
-      };
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
-      const text = (data.content || []).map(b => b.text || '').join('').trim();
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        allTransactions.push(...parsed);
-      }
-      console.log(`[parse-statement] page ${pi + 1}/${images.length} done in ${Date.now() - pageStart}ms (status ${response.status})`);
-    }
+      ]}]
+    };
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
+    const text = (data.content || []).map(b => b.text || '').join('').trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    console.log(`[parse-statement] page ${pi + 1}/${images.length} done in ${Date.now() - pageStart}ms (status ${response.status})`);
+    return parsed;
+  }
+
+  try {
+    const pages = await Promise.all(images.map((img, pi) => parsePage(img, pi)));
     // Filter out fee lines
-    const transactions = allTransactions.filter(t => !t.is_fee);
+    const transactions = pages.flat().filter(t => !t.is_fee);
     console.log(`[parse-statement] success: ${transactions.length} tx in ${Date.now() - t0}ms`);
     res.json({ transactions });
   } catch (err) {
