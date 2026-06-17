@@ -2803,12 +2803,12 @@ Rules:
       } finally {
         clearTimeout(timeout);
       }
-      if (!parseRes.ok) {
-        let msg = 'Parse-Fehler';
-        try { const d = await parseRes.json(); msg = d.error || msg; } catch { msg = `Server-Fehler ${parseRes.status}`; }
-        throw new Error(msg);
-      }
-      const { transactions } = await parseRes.json();
+      // The server keeps the connection alive with a heartbeat and always
+      // returns 200, signalling failure via an { error } field in the body.
+      const parseData = await parseRes.json().catch(() => null);
+      if (!parseRes.ok) throw new Error(parseData?.error || `Server-Fehler ${parseRes.status}`);
+      if (!parseData || parseData.error) throw new Error(parseData?.error || 'Parse-Fehler');
+      const { transactions } = parseData;
 
       // Step 3: Fetch belege for user
       statusText.textContent = 'Belege werden geladen…';
