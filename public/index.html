@@ -696,6 +696,7 @@
           </div>
           <div id="userReconBelegeContainer"></div>
           <div id="userReconResults"></div>
+          <div id="userReconExtra"></div>
         </div>
       </div>
     </div>
@@ -829,6 +830,7 @@
           </div>
           <div id="adminReconBelegeContainer"></div>
           <div id="reconResults"></div>
+          <div id="adminReconExtra"></div>
         </div>
       </div>
       </div><!-- /adminSubReconPanel -->
@@ -2954,6 +2956,51 @@ Rules:
     return results;
   }
 
+  // Earliest/latest transaction date across a statement's results.
+  function periodFromResults(results) {
+    let min = null, max = null;
+    for (const r of results) {
+      const d = normalizeDate(r.tx && r.tx.date);
+      if (!d) continue;
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    }
+    return { min, max };
+  }
+
+  // Render the receipts that fall inside the statement's date window but are not
+  // assigned to it — i.e. candidates the user may still need to account for.
+  function renderPeriodUnassigned(containerEl, results, belegeArr, folderMap) {
+    if (!containerEl) return;
+    const { min, max } = periodFromResults(results);
+    if (!min || !max) { containerEl.innerHTML = ''; return; }
+    const assigned = new Set(results.filter(r => r.beleg).map(r => r.beleg.id));
+    const inRange = (belegeArr || [])
+      .filter(b => {
+        if (assigned.has(b.id)) return false;
+        const d = normalizeDate(b.date);
+        return d && d >= min && d <= max;
+      })
+      .sort((a, b) => (normalizeDate(a.date) || 0) - (normalizeDate(b.date) || 0));
+    const fmt = d => d.toLocaleDateString('de-CH');
+    const head = `<div class="admin-section-title" style="font-size:13px;margin:28px 0 12px">Nicht zugeordnete Belege im Zeitraum ${fmt(min)} – ${fmt(max)} (${inRange.length})</div>`;
+    if (!inRange.length) {
+      containerEl.innerHTML = head + '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Alle Belege in diesem Zeitraum sind zugeordnet</div>';
+      return;
+    }
+    containerEl.innerHTML = head + `<table class="admin-belege-table">
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Zahlung</th><th>Einsatz</th></tr></thead>
+      <tbody>${inRange.map(b => `<tr>
+        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
+        <td>${esc(b.merchant||'—')}</td>
+        <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
+        <td style="font-family:var(--serif)">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</td>
+        <td style="color:var(--muted);font-size:11px">${esc(b.payment_method||'—')}</td>
+        <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
   function renderReconResults() {
     if (!reconState) return;
     const { results, folderMap } = reconState;
@@ -2965,6 +3012,7 @@ Rules:
     document.getElementById('reconMatchedCount').textContent = matched;
     document.getElementById('reconUnmatchedCount').textContent = unmatched;
     summaryEl.style.display = 'block';
+    renderPeriodUnassigned(document.getElementById('adminReconExtra'), results, reconState.belege, folderMap);
 
     if (!results.length) {
       resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
@@ -3376,6 +3424,7 @@ Rules:
     document.getElementById('userReconMatchedCount').textContent = matched;
     document.getElementById('userReconUnmatchedCount').textContent = unmatched;
     summaryEl.style.display = 'block';
+    renderPeriodUnassigned(document.getElementById('userReconExtra'), results, belege, folderMap);
 
     if (!results.length) {
       resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
