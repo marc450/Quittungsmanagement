@@ -778,39 +778,52 @@
       </div><!-- /adminSubBelegePanel -->
       <div id="adminSubReconPanel" style="display:none">
       <div class="admin-section">
-        <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
-        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:20px">
-          <select id="reconUserSelect" class="field-select" style="flex:1;min-width:180px">
+        <div class="admin-section-title">Kreditkartenabrechnungen</div>
+        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:16px">
+          <select id="reconUserSelect" class="field-select" style="flex:1;min-width:180px" onchange="onReconUserChange()">
             <option value="">— Benutzer:in wählen —</option>
           </select>
-          <label class="btn-analyze" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
+          <label class="btn-analyze" id="adminReconUploadBtn" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0;opacity:0.45;pointer-events:none">
             PDF hochladen
             <input type="file" id="statementFileInput" accept=".pdf" style="display:none" />
           </label>
         </div>
-        <div id="reconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
-            <span id="reconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
-          </div>
-        </div>
-        <div id="reconSummary" style="display:none;margin-bottom:20px">
-          <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
-              <div style="font-family:var(--serif);font-size:20px" id="reconTotalCount">0</div>
-            </div>
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
-              <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="reconMatchedCount">0</div>
-            </div>
-            <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
-              <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="reconUnmatchedCount">0</div>
+
+        <!-- Overview: saved statements for the selected user -->
+        <div id="adminReconOverview">
+          <div id="reconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
+              <span id="reconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
             </div>
           </div>
+          <div id="adminReconError" style="display:none;padding:12px 16px;background:#fff0ee;border:1px solid #f0c0b8;border-radius:4px;margin-bottom:20px;font-size:12px;color:var(--accent)"></div>
+          <div id="adminReconList"><div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Abrechnungen zu sehen</div></div>
         </div>
-        <div id="reconResults"></div>
+
+        <!-- Detail: single statement reconciliation -->
+        <div id="adminReconDetail" style="display:none">
+          <button onclick="showAdminReconOverview()" class="btn-logout" style="font-size:10px;padding:4px 12px;margin-bottom:16px">← Zurück zur Übersicht</button>
+          <div class="admin-section-title" id="adminReconDetailTitle">Abrechnung</div>
+          <div id="reconSummary" style="display:none;margin-bottom:20px">
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
+                <div style="font-family:var(--serif);font-size:20px" id="reconTotalCount">0</div>
+              </div>
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
+                <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="reconMatchedCount">0</div>
+              </div>
+              <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
+                <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="reconUnmatchedCount">0</div>
+              </div>
+            </div>
+          </div>
+          <div id="adminReconBelegeContainer"></div>
+          <div id="reconResults"></div>
+        </div>
       </div>
       </div><!-- /adminSubReconPanel -->
     </div>
@@ -2386,6 +2399,7 @@ Rules:
     document.getElementById('adminSubRecon').classList.toggle('active', sub === 'recon');
     document.getElementById('adminSubBelegePanel').style.display = sub === 'belege' ? 'block' : 'none';
     document.getElementById('adminSubReconPanel').style.display = sub === 'recon' ? 'block' : 'none';
+    if (sub === 'recon') { showAdminReconOverview(); onReconUserChange(); }
   }
 
   function switchTab(tab) {
@@ -2632,8 +2646,9 @@ Rules:
     document.getElementById('imageViewerImg').src = '';
   }
 
-  // ---- Reconciliation ----
-  let reconState = null; // { results, belege, folderMap }
+  // ---- Reconciliation (admin: on behalf of a selected user) ----
+  let reconState = null;     // open statement: { statementId, userId, name, results, belege, folderMap }
+  let adminStatements = [];  // saved statements for the selected user (overview)
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   function populateReconUserSelect() {
@@ -2647,10 +2662,164 @@ Rules:
     const file = e.target.files[0];
     if (!file) return;
     const userId = document.getElementById('reconUserSelect').value;
-    if (!userId) { showError('Bitte zuerst Benutzer:in wählen.'); e.target.value = ''; return; }
+    if (!userId) { showAdminReconError('Bitte zuerst Benutzer:in wählen.'); e.target.value = ''; return; }
     await runReconciliation(file, userId);
     e.target.value = '';
   });
+
+  function showAdminReconError(msg) {
+    const el = document.getElementById('adminReconError');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function showAdminReconOverview() {
+    reconAssigningIdx = null;
+    document.getElementById('adminReconDetail').style.display = 'none';
+    document.getElementById('adminReconOverview').style.display = 'block';
+    renderAdminStatementList();
+  }
+
+  function showAdminReconDetail() {
+    showAdminReconError('');
+    document.getElementById('adminReconOverview').style.display = 'none';
+    document.getElementById('adminReconDetail').style.display = 'block';
+  }
+
+  // Selecting a user (or entering the sub-tab) loads that user's statements and
+  // enables the upload button.
+  function onReconUserChange() {
+    const userId = document.getElementById('reconUserSelect').value;
+    const uploadBtn = document.getElementById('adminReconUploadBtn');
+    showAdminReconError('');
+    showAdminReconOverview();
+    if (!userId) {
+      uploadBtn.style.opacity = '0.45';
+      uploadBtn.style.pointerEvents = 'none';
+      adminStatements = [];
+      document.getElementById('adminReconList').innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Benutzer:in wählen um Abrechnungen zu sehen</div>';
+      return;
+    }
+    uploadBtn.style.opacity = '';
+    uploadBtn.style.pointerEvents = '';
+    loadAdminStatements(userId);
+  }
+
+  // Fetch the selected user's belege + folders via the admin (service-role) API.
+  async function fetchAdminUserData(userId) {
+    const auth = await getAdminAuthHeader();
+    const [belegeRes, foldersRes] = await Promise.all([
+      fetch(`/api/admin/belege?userId=${userId}`, { headers: { 'Authorization': auth } }),
+      fetch(`/api/admin/folders?userId=${userId}`, { headers: { 'Authorization': auth } }),
+    ]);
+    const userBelege = belegeRes.ok ? await belegeRes.json() : [];
+    const userFolders = foldersRes.ok ? await foldersRes.json() : [];
+    return { belege: userBelege, folderMap: Object.fromEntries(userFolders.map(f => [f.id, f.name])) };
+  }
+
+  async function loadAdminStatements(userId) {
+    const listEl = document.getElementById('adminReconList');
+    try {
+      const auth = await getAdminAuthHeader();
+      const res = await fetch(`/api/admin/statements?userId=${userId}`, { headers: { 'Authorization': auth } });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && data.error) || `Server-Fehler ${res.status}`);
+      adminStatements = Array.isArray(data) ? data : [];
+      // Resolve counts against the user's current belege.
+      const { belege: userBelege } = await fetchAdminUserData(userId);
+      adminReconBelegeCache = userBelege;
+      renderAdminStatementList();
+    } catch (err) {
+      listEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Konnte Abrechnungen nicht laden: ${esc(err.message || String(err))}</div>`;
+    }
+  }
+
+  let adminReconBelegeCache = []; // selected user's belege, for overview counts
+
+  function renderAdminStatementList() {
+    const listEl = document.getElementById('adminReconList');
+    if (!adminStatements.length) {
+      listEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Noch keine Abrechnungen für diese:n Benutzer:in</div>';
+      return;
+    }
+    const ids = new Set(adminReconBelegeCache.map(b => b.id));
+    listEl.innerHTML = adminStatements.map(s => {
+      const txs = Array.isArray(s.transactions) ? s.transactions : [];
+      const total = txs.length;
+      const matched = txs.filter(t => t.beleg_id && ids.has(t.beleg_id)).length;
+      const missing = total - matched;
+      const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString('de-CH') : '';
+      return `<div class="recon-statement-row" onclick="openAdminStatement('${s.id}')">
+        <div style="min-width:0;flex:1">
+          <div class="recon-merchant" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name || 'Abrechnung')}</div>
+          <div class="recon-date">${dateStr}${dateStr ? ' · ' : ''}${total} Transaktion${total === 1 ? '' : 'en'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+          <span style="font-size:11px;color:#2d7d46;font-weight:500">${matched} zugeordnet</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:500">${missing} fehlend</span>
+          <button onclick="event.stopPropagation();deleteAdminStatement('${s.id}')" class="btn-logout btn-sm" style="font-size:10px;padding:3px 10px;color:var(--accent);border-color:#f0c0b8">Löschen</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function openAdminStatement(id) {
+    const s = adminStatements.find(x => x.id === id);
+    if (!s) return;
+    const userId = document.getElementById('reconUserSelect').value;
+    const { belege: userBelege, folderMap } = await fetchAdminUserData(userId);
+    adminReconBelegeCache = userBelege;
+    const byId = Object.fromEntries(userBelege.map(b => [b.id, b]));
+    const txs = Array.isArray(s.transactions) ? s.transactions : [];
+    reconState = {
+      statementId: s.id,
+      userId,
+      name: s.name,
+      results: txs.map(tx => {
+        const beleg = tx.beleg_id ? (byId[tx.beleg_id] || null) : null;
+        return { tx, beleg, status: beleg ? 'matched' : 'unmatched' };
+      }),
+      belege: userBelege,
+      folderMap,
+    };
+    reconAssigningIdx = null;
+    document.getElementById('adminReconBelegeContainer').innerHTML = '';
+    document.getElementById('adminReconDetailTitle').textContent = s.name || 'Abrechnung';
+    showAdminReconDetail();
+    renderReconResults();
+  }
+
+  async function deleteAdminStatement(id) {
+    if (!await nativeConfirm('Diese Abrechnung unwiderruflich löschen?', 'Abrechnung löschen')) return;
+    try {
+      const auth = await getAdminAuthHeader();
+      const res = await fetch(`/api/admin/statements?id=${id}`, { method: 'DELETE', headers: { 'Authorization': auth } });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Server-Fehler ${res.status}`); }
+      const userId = document.getElementById('reconUserSelect').value;
+      await loadAdminStatements(userId);
+    } catch (err) {
+      showAdminReconError('Löschen fehlgeschlagen: ' + (err.message || err));
+    }
+  }
+
+  // Persist the open statement's current assignments via the admin API.
+  async function persistAdminStatement() {
+    if (!reconState || !reconState.statementId) return;
+    const txRows = reconState.results.map(serializeReconTx);
+    const cached = adminStatements.find(s => s.id === reconState.statementId);
+    if (cached) cached.transactions = txRows;
+    try {
+      const auth = await getAdminAuthHeader();
+      const res = await fetch('/api/admin/statements', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+        body: JSON.stringify({ id: reconState.statementId, transactions: txRows }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Server-Fehler ${res.status}`); }
+    } catch (err) {
+      showAdminReconError('Speichern fehlgeschlagen: ' + (err.message || err));
+    }
+  }
 
   // Reconstruct readable, line-broken text from pdf.js text items. Statements
   // are row/column based, so we group items by vertical position into lines and
@@ -2799,12 +2968,13 @@ Rules:
         <div class="recon-right">
           ${isMatched ? `
             <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
-            <div>
+            <div style="min-width:0">
               <div class="recon-merchant">${esc(b.merchant||'—')}</div>
               <div class="recon-match-info">${esc(formatDateStr(b.date))}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
             </div>
+            <button onclick="unassignAdminBeleg(${idx})" class="btn-logout btn-sm" style="font-size:9px;padding:2px 8px;margin-left:auto;color:var(--accent);border-color:#f0c0b8">Entfernen</button>
           ` : reconAssigningIdx === idx ? `
-            <div style="font-size:11px;color:#1a56db;font-weight:500">← Quittung oben auswählen</div>
+            <div style="font-size:11px;color:#1a56db;font-weight:500">↑ Quittung oben auswählen</div>
           ` : `
             <button onclick="startAssigning(${idx})" class="btn-analyze btn-sm" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
           `}
@@ -2819,14 +2989,13 @@ Rules:
     reconAssigningIdx = rowIdx;
     renderReconResults();
     renderAdminBelegeWithAssign();
-    // Scroll to belege section
-    document.getElementById('adminBelegeContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('adminReconBelegeContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function cancelAssigning() {
     reconAssigningIdx = null;
+    document.getElementById('adminReconBelegeContainer').innerHTML = '';
     renderReconResults();
-    renderAdminBelegeWithAssign();
   }
 
   function confirmAssign(belegId) {
@@ -2836,14 +3005,23 @@ Rules:
     reconState.results[reconAssigningIdx].beleg = beleg;
     reconState.results[reconAssigningIdx].status = 'matched';
     reconAssigningIdx = null;
+    document.getElementById('adminReconBelegeContainer').innerHTML = '';
     renderReconResults();
-    renderAdminBelegeWithAssign();
+    persistAdminStatement();
+  }
+
+  function unassignAdminBeleg(rowIdx) {
+    if (!reconState || !reconState.results[rowIdx]) return;
+    reconState.results[rowIdx].beleg = null;
+    reconState.results[rowIdx].status = 'unmatched';
+    renderReconResults();
+    persistAdminStatement();
   }
 
   function renderAdminBelegeWithAssign() {
-    const container = document.getElementById('adminBelegeContainer');
+    const container = document.getElementById('adminReconBelegeContainer');
     if (!reconState || reconAssigningIdx == null) {
-      renderAdminBelegeTable();
+      container.innerHTML = '';
       return;
     }
     const tx = reconState.results[reconAssigningIdx]?.tx;
@@ -2877,11 +3055,8 @@ Rules:
   async function runReconciliation(file, userId) {
     const statusEl = document.getElementById('reconStatus');
     const statusText = document.getElementById('reconStatusText');
-    const summaryEl = document.getElementById('reconSummary');
-    const resultsEl = document.getElementById('reconResults');
+    showAdminReconError('');
     statusEl.style.display = 'block';
-    summaryEl.style.display = 'none';
-    resultsEl.innerHTML = '';
 
     try {
       // Step 1: Read the PDF (text layer where present, image fallback otherwise)
@@ -2916,31 +3091,31 @@ Rules:
       if (!parseData || parseData.error) throw new Error(parseData?.error || 'Parse-Fehler');
       const { transactions } = parseData;
 
-      // Step 3: Fetch belege for user
+      // Step 3: Fetch belege for user and auto-match
       statusText.textContent = 'Belege werden geladen…';
-      const [belegeRes, foldersRes] = await Promise.all([
-        fetch(`/api/admin/belege?userId=${userId}`, { headers: { 'Authorization': auth } }),
-        fetch(`/api/admin/folders?userId=${userId}`, { headers: { 'Authorization': auth } }),
-      ]);
-      const userBelege = belegeRes.ok ? await belegeRes.json() : [];
-      const userFolders = foldersRes.ok ? await foldersRes.json() : [];
-      const folderMap = Object.fromEntries(userFolders.map(f => [f.id, f.name]));
-
-      // Step 4: Match
+      const { belege: userBelege } = await fetchAdminUserData(userId);
       statusText.textContent = 'Abgleich läuft…';
-      reconState = {
-        results: matchTransactions(transactions, userBelege),
-        belege: userBelege,
-        folderMap: Object.fromEntries(userFolders.map(f => [f.id, f.name])),
-      };
+      const matchResults = matchTransactions(transactions, userBelege);
+      const txRows = matchResults.map(serializeReconTx);
+      const name = (file.name || 'Kreditkartenabrechnung').replace(/\.pdf$/i, '').trim() || 'Kreditkartenabrechnung';
 
-      // Step 5: Render
+      // Step 4: Save the statement for this user, then open its detail view
+      statusText.textContent = 'Wird gespeichert…';
+      const saveRes = await fetch('/api/admin/statements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+        body: JSON.stringify({ userId, name, transactions: txRows }),
+      });
+      const saved = await saveRes.json().catch(() => null);
+      if (!saveRes.ok) throw new Error((saved && saved.error) || `Server-Fehler ${saveRes.status}`);
+
       statusEl.style.display = 'none';
-      renderReconResults();
+      await loadAdminStatements(userId);
+      await openAdminStatement(saved.id);
 
     } catch (err) {
       statusEl.style.display = 'none';
-      resultsEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Fehler: ${esc(err.message)}</div>`;
+      showAdminReconError('Fehler: ' + (err.message || err));
     }
   }
 

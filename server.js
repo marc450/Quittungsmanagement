@@ -270,6 +270,78 @@ app.post('/api/admin/parse-statement', async (req, res) => {
   return handleParseStatement(req, res);
 });
 
+// Admin CRUD for kk_statements on behalf of another user (service role bypasses
+// RLS — admins can't reach another user's rows from the browser otherwise).
+
+// GET /api/admin/statements?userId=xxx
+app.get('/api/admin/statements', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/kk_statements?user_id=eq.${userId}&select=id,name,transactions,created_at&order=created_at.desc`,
+    { headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey } }
+  );
+  const data = await r.json();
+  res.status(r.status).json(data);
+});
+
+// POST /api/admin/statements  { userId, name, transactions }
+app.post('/api/admin/statements', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { userId, name, transactions } = req.body;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/kk_statements`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey,
+      'Content-Type': 'application/json', 'Prefer': 'return=representation',
+    },
+    body: JSON.stringify({ user_id: userId, name: name || 'Kreditkartenabrechnung', transactions: transactions || [] }),
+  });
+  const data = await r.json();
+  if (!r.ok) return res.status(r.status).json({ error: data.message || JSON.stringify(data) });
+  res.json(Array.isArray(data) ? data[0] : data);
+});
+
+// PATCH /api/admin/statements  { id, transactions }
+app.patch('/api/admin/statements', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const { id, transactions } = req.body;
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/kk_statements?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey,
+      'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ transactions: transactions || [] }),
+  });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); return res.status(r.status).json({ error: d.message || JSON.stringify(d) }); }
+  res.json({ success: true });
+});
+
+// DELETE /api/admin/statements?id=xxx
+app.delete('/api/admin/statements', async (req, res) => {
+  const adminId = await verifyAdmin(req.headers.authorization);
+  if (!adminId) return res.status(403).json({ error: 'Forbidden' });
+  const id = req.query.id || (req.body && req.body.id);
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/kk_statements?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey },
+  });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); return res.status(r.status).json({ error: d.message || JSON.stringify(d) }); }
+  res.json({ success: true });
+});
+
 // DELETE /api/admin/delete-user
 app.delete('/api/admin/delete-user', async (req, res) => {
   const adminId = await verifyAdmin(req.headers.authorization);
