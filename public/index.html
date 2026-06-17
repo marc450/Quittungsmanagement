@@ -715,7 +715,7 @@
           <select id="reconUserSelect" class="field-select" style="flex:1;min-width:180px">
             <option value="">— Benutzer:in wählen —</option>
           </select>
-          <label class="btn-analyze" style="font-size:11px;padding:0 16px;height:100%;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
+          <label class="btn-analyze" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
             PDF hochladen
             <input type="file" id="statementFileInput" accept=".pdf" style="display:none" />
           </label>
@@ -2586,8 +2586,10 @@ Rules:
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      const dataUrl = canvas.toDataURL('image/png');
-      images.push({ base64: dataUrl.split(',')[1], media_type: 'image/png' });
+      // JPEG keeps the payload well under the server body limit; PNG of a
+      // full-page scan is ~10x larger and overflows it on multi-page statements.
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      images.push({ base64: dataUrl.split(',')[1], media_type: 'image/jpeg' });
     }
     return images;
   }
