@@ -131,6 +131,35 @@ Rules:
   return transactions;
 }
 
+// Shared parse-statement response handler (auth is enforced by the caller).
+// Railway drops an idle HTTP connection after ~60s. While Claude parses the
+// pages no bytes flow to the client, so a slow statement was getting cut with
+// "Failed to fetch" even though the server eventually finished. Flush the
+// headers right away and trickle a whitespace byte every 15s to keep the
+// connection alive; the trailing JSON is what the client actually parses
+// (leading whitespace is valid JSON, so the heartbeat bytes are harmless).
+// Because headers are already sent, the status code is locked at 200 — we
+// signal failure with an { error } body instead of a 500.
+async function streamParseStatement(req, res) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  const { images } = req.body; // array of { base64, media_type }
+  if (!images || !images.length) return res.status(400).json({ error: 'No images' });
+  const t0 = Date.now();
+  res.setHeader('Content-Type', 'application/json');
+  res.flushHeaders();
+  const heartbeat = setInterval(() => { try { res.write(' '); } catch {} }, 15000);
+  try {
+    const transactions = await parseStatementImages(images, apiKey);
+    clearInterval(heartbeat);
+    res.end(JSON.stringify({ transactions }));
+  } catch (err) {
+    clearInterval(heartbeat);
+    console.error(`[parse-statement] error after ${Date.now() - t0}ms:`, err.message);
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
 // GET /api/all-folders — returns all folders (all users) for authenticated users
 app.get('/api/all-folders', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -231,88 +260,18 @@ app.post('/api/admin/create-user', async (req, res) => {
   }
 });
 
-// POST /api/admin/parse-statement
+// POST /api/parse-statement — any authenticated user reconciles their own statement
+app.post('/api/parse-statement', async (req, res) => {
+  const userId = await verifyUser(req.headers.authorization);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  return streamParseStatement(req, res);
+});
+
+// POST /api/admin/parse-statement — admins parse on behalf of another user
 app.post('/api/admin/parse-statement', async (req, res) => {
   const adminId = await verifyAdmin(req.headers.authorization);
   if (!adminId) return res.status(403).json({ error: 'Forbidden' });
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
-  const { images } = req.body; // array of { base64, media_type }
-  if (!images || !images.length) return res.status(400).json({ error: 'No images' });
-  const totalBytes = images.reduce((n, im) => n + (im.base64?.length || 0), 0);
-  console.log(`[parse-statement] start: ${images.length} page(s), ~${(totalBytes / 1.37 / 1e6).toFixed(1)}MB image data`);
-  const t0 = Date.now();
-
-  // Analyse one page. Pages run in parallel (see Promise.all below) so the
-  // total time stays near the slowest single page — Railway drops HTTP/2
-  // connections after ~60s, and running pages sequentially blew past that.
-  async function parsePage(img, pi) {
-    const pageStart = Date.now();
-    const payload = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 4000,
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: img.media_type || "image/png", data: img.base64 } },
-        { type: "text", text: `You are a credit card statement parser. Extract ALL transaction lines from this bank statement image.
-
-Return ONLY a raw JSON array — no markdown, no explanation, no code fences. Start with [ and end with ].
-
-Each transaction object must have:
-{"date":"DD.MM.YYYY","merchant":"string","amount_chf":number,"currency_original":"string","amount_original":number_or_null,"is_fee":false}
-
-Rules:
-- date: the transaction date (first date column), convert YY to full year (e.g. 26 → 2026)
-- merchant: the merchant/vendor name (first line of the detail text)
-- amount_chf: the CHF amount (rightmost column). This is the key matching field.
-- currency_original: original transaction currency (EUR, USD, CHF, etc.)
-- amount_original: amount in original currency if different from CHF, null if same
-- is_fee: true ONLY for "Bearbeitungsgebühr" fee lines, false for all real transactions
-- Skip header rows, subtotals, and summary lines (like "Übertrag Karte", "Total Karte")
-- Each real purchase/payment is one entry. Do NOT merge multiple transactions.
-- If a transaction has a currency conversion line below it, that's part of the same transaction — do not create a separate entry for the conversion line.` }
-      ]}]
-    };
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
-    const text = (data.content || []).map(b => b.text || '').join('').trim();
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-    console.log(`[parse-statement] page ${pi + 1}/${images.length} done in ${Date.now() - pageStart}ms (status ${response.status})`);
-    return parsed;
-  }
-
-  // Railway drops an idle HTTP connection after ~60s. While Claude parses the
-  // pages no bytes flow to the client, so a slow statement was getting cut with
-  // "Failed to fetch" even though the server eventually finished. Flush the
-  // headers right away and trickle a whitespace byte every 15s to keep the
-  // connection alive; the trailing JSON is what the client actually parses
-  // (leading whitespace is valid JSON, so the heartbeat bytes are harmless).
-  // Because headers are already sent, the status code is locked at 200 — we
-  // signal failure with an { error } body instead of a 500.
-  res.setHeader('Content-Type', 'application/json');
-  res.flushHeaders();
-  const heartbeat = setInterval(() => { try { res.write(' '); } catch {} }, 15000);
-  try {
-    const pages = await Promise.all(images.map((img, pi) => parsePage(img, pi)));
-    // Filter out fee lines
-    const transactions = pages.flat().filter(t => !t.is_fee);
-    clearInterval(heartbeat);
-    console.log(`[parse-statement] success: ${transactions.length} tx in ${Date.now() - t0}ms`);
-    res.end(JSON.stringify({ transactions }));
-  } catch (err) {
-    clearInterval(heartbeat);
-    console.error(`[parse-statement] error after ${Date.now() - t0}ms:`, err.message);
-    res.end(JSON.stringify({ error: err.message }));
-  }
+  return streamParseStatement(req, res);
 });
 
 // DELETE /api/admin/delete-user

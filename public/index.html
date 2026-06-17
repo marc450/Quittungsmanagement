@@ -622,11 +622,50 @@
       <button onclick="logout();toggleHamburger()">Abmelden</button>
     </div>
 
-    <!-- Tab bar (admins only, desktop only) -->
+    <!-- Tab bar (all users, desktop only) -->
     <div class="tab-bar" id="tabBar" style="display:none">
       <button class="tab-btn active" id="tabBelege" onclick="switchTab('belege')">Meine Belege</button>
-      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')">Administration</button>
-      <button class="tab-btn" id="tabUsers" onclick="switchTab('users')">Nutzerverwaltung</button>
+      <button class="tab-btn" id="tabUserRecon" onclick="switchTab('recon')">KK-Abrechnung</button>
+      <button class="tab-btn" id="tabAdmin" onclick="switchTab('admin')" style="display:none">Administration</button>
+      <button class="tab-btn" id="tabUsers" onclick="switchTab('users')" style="display:none">Nutzerverwaltung</button>
+    </div>
+
+    <!-- KK-Abrechnung panel (self-service, all users) -->
+    <div id="userReconPanel" style="display:none">
+      <div class="admin-section">
+        <div class="admin-section-title">Kreditkartenabrechnung abgleichen</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 20px;line-height:1.5">Lade Deine Kreditkartenabrechnung als PDF hoch. Die Transaktionen werden automatisch mit Deinen erfassten Belegen abgeglichen, damit Du siehst, welche Quittungen noch fehlen.</p>
+        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:20px">
+          <label class="btn-analyze" style="font-size:11px;padding:0 16px;display:inline-flex;align-items:center;margin:0;cursor:pointer;flex-shrink:0">
+            PDF hochladen
+            <input type="file" id="userStatementFileInput" accept=".pdf" style="display:none" />
+          </label>
+        </div>
+        <div id="userReconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
+            <span id="userReconStatusText" style="font-size:12px;color:var(--muted)">Wird analysiert…</span>
+          </div>
+        </div>
+        <div id="userReconSummary" style="display:none;margin-bottom:20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:var(--cream);border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px">Transaktionen</div>
+              <div style="font-family:var(--serif);font-size:20px" id="userReconTotalCount">0</div>
+            </div>
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:#e8f5e9;border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#2d7d46;margin-bottom:4px">Zugeordnet</div>
+              <div style="font-family:var(--serif);font-size:20px;color:#2d7d46" id="userReconMatchedCount">0</div>
+            </div>
+            <div style="flex:1;min-width:140px;padding:14px 16px;background:#fff0ee;border-radius:4px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px">Fehlend</div>
+              <div style="font-family:var(--serif);font-size:20px;color:var(--accent)" id="userReconUnmatchedCount">0</div>
+            </div>
+          </div>
+        </div>
+        <div id="userReconBelegeContainer"></div>
+        <div id="userReconResults"></div>
+      </div>
     </div>
 
     <!-- Nutzerverwaltung panel -->
@@ -1056,6 +1095,10 @@
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appMain').style.display = 'block';
     document.getElementById('headerUser').textContent = currentUser.email;
+    // Tab bar is shown to every user; CSS hides it on mobile (statement
+    // reconciliation is a desktop-only feature). Admin tabs are revealed
+    // separately once the profile loads.
+    document.getElementById('tabBar').style.display = 'flex';
   }
 
   document.getElementById('loginForm').addEventListener('submit', async e => {
@@ -2304,6 +2347,8 @@ Rules:
   function showAdminTabIfNeeded() {
     if (currentProfile?.role === 'admin') {
       document.getElementById('tabBar').style.display = 'flex';
+      document.getElementById('tabAdmin').style.display = '';
+      document.getElementById('tabUsers').style.display = '';
     }
   }
 
@@ -2316,9 +2361,11 @@ Rules:
 
   function switchTab(tab) {
     document.getElementById('tabBelege').classList.toggle('active', tab === 'belege');
+    document.getElementById('tabUserRecon').classList.toggle('active', tab === 'recon');
     document.getElementById('tabUsers').classList.toggle('active', tab === 'users');
     document.getElementById('tabAdmin').classList.toggle('active', tab === 'admin');
     document.getElementById('mainContent').style.display = tab === 'belege' ? 'block' : 'none';
+    document.getElementById('userReconPanel').style.display = tab === 'recon' ? 'block' : 'none';
     document.getElementById('usersPanel').style.display = tab === 'users' ? 'block' : 'none';
     document.getElementById('adminPanel').style.display = tab === 'admin' ? 'block' : 'none';
     if (tab === 'users' || tab === 'admin') loadAdminUsers();
@@ -2844,6 +2891,188 @@ Rules:
     _origRenderAdminUserSelect();
     populateReconUserSelect();
   };
+
+  // ── Self-service reconciliation (KK-Abrechnung tab, all users) ──────────────
+  // Mirrors the admin flow but reconciles against the signed-in user's own
+  // belege/folders (already loaded into the global `belege` / `folders`), and
+  // parses via the non-admin /api/parse-statement endpoint.
+  let userReconState = null; // { results, belege, folderMap }
+  let userReconAssigningIdx = null;
+
+  document.getElementById('userStatementFileInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    await runUserReconciliation(file);
+    e.target.value = '';
+  });
+
+  async function runUserReconciliation(file) {
+    const statusEl = document.getElementById('userReconStatus');
+    const statusText = document.getElementById('userReconStatusText');
+    const summaryEl = document.getElementById('userReconSummary');
+    const resultsEl = document.getElementById('userReconResults');
+    userReconAssigningIdx = null;
+    document.getElementById('userReconBelegeContainer').innerHTML = '';
+    statusEl.style.display = 'block';
+    summaryEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+
+    try {
+      statusText.textContent = 'PDF wird konvertiert…';
+      const images = await pdfToImages(file);
+
+      statusText.textContent = `${images.length} Seite(n) werden analysiert…`;
+      const auth = await getAdminAuthHeader();
+      const body = JSON.stringify({ images });
+      console.log(`[recon] uploading ${images.length} page(s), ${(body.length / 1e6).toFixed(1)}MB payload`);
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 240000); // 4 min
+      let parseRes;
+      try {
+        parseRes = await fetch('/api/parse-statement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+          body,
+          signal: ctrl.signal,
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') throw new Error('Zeitüberschreitung – die Analyse hat zu lange gedauert.');
+        throw new Error(`Verbindung zum Server unterbrochen (${e.message})`);
+      } finally {
+        clearTimeout(timeout);
+      }
+      // The endpoint streams a keepalive heartbeat and locks the status at 200,
+      // signalling failure with an { error } body (see streamParseStatement).
+      let data;
+      try { data = await parseRes.json(); } catch { throw new Error(`Server-Fehler ${parseRes.status}`); }
+      if (data.error) throw new Error(data.error);
+      const transactions = data.transactions || [];
+
+      statusText.textContent = 'Belege werden geladen…';
+      await Promise.all([loadBelege(), loadFolders()]);
+
+      statusText.textContent = 'Abgleich läuft…';
+      const folderMap = Object.fromEntries((folders || []).map(f => [f.id, f.name]));
+      userReconState = {
+        results: matchTransactions(transactions, belege),
+        belege: belege.slice(),
+        folderMap,
+      };
+
+      statusEl.style.display = 'none';
+      renderUserReconResults();
+    } catch (err) {
+      statusEl.style.display = 'none';
+      resultsEl.innerHTML = `<div class="admin-empty" style="border:1px solid #f0c0b8;border-radius:4px;color:var(--accent)">Fehler: ${esc(err.message)}</div>`;
+    }
+  }
+
+  function renderUserReconResults() {
+    if (!userReconState) return;
+    const { results, folderMap } = userReconState;
+    const summaryEl = document.getElementById('userReconSummary');
+    const resultsEl = document.getElementById('userReconResults');
+    const matched = results.filter(r => r.status === 'matched').length;
+    const unmatched = results.filter(r => r.status === 'unmatched').length;
+    document.getElementById('userReconTotalCount').textContent = results.length;
+    document.getElementById('userReconMatchedCount').textContent = matched;
+    document.getElementById('userReconUnmatchedCount').textContent = unmatched;
+    summaryEl.style.display = 'block';
+
+    if (!results.length) {
+      resultsEl.innerHTML = '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine Transaktionen gefunden</div>';
+      return;
+    }
+
+    resultsEl.innerHTML = results.map((r, idx) => {
+      const tx = r.tx;
+      const b = r.beleg;
+      const isMatched = r.status === 'matched';
+      const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
+      const rowClass = isMatched ? 'matched' : userReconAssigningIdx === idx ? 'assigning' : 'unmatched';
+      return `<div class="recon-row ${rowClass}">
+        <div class="recon-left">
+          <div class="recon-merchant">${esc(tx.merchant || '—')}</div>
+          <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
+        </div>
+        <div style="text-align:center">
+          <div class="recon-amount">${tx.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF</div>
+          <div class="recon-arrow">${isMatched ? '✅' : '⚠️'}</div>
+        </div>
+        <div class="recon-right">
+          ${isMatched ? `
+            <img class="recon-match-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" />
+            <div>
+              <div class="recon-merchant">${esc(b.merchant||'—')}</div>
+              <div class="recon-match-info">${esc(formatDateStr(b.date))}${folderName ? ' · 📁 '+esc(folderName) : ''}</div>
+            </div>
+          ` : userReconAssigningIdx === idx ? `
+            <div style="font-size:11px;color:#1a56db;font-weight:500">↑ Quittung oben auswählen</div>
+          ` : `
+            <button onclick="startUserAssigning(${idx})" class="btn-analyze" style="font-size:10px;padding:6px 12px;margin:0">Zuordnen</button>
+          `}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function startUserAssigning(rowIdx) {
+    userReconAssigningIdx = rowIdx;
+    renderUserReconResults();
+    renderUserAssignBelege();
+    document.getElementById('userReconBelegeContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cancelUserAssigning() {
+    userReconAssigningIdx = null;
+    document.getElementById('userReconBelegeContainer').innerHTML = '';
+    renderUserReconResults();
+  }
+
+  function confirmUserAssign(belegId) {
+    if (userReconAssigningIdx == null || !userReconState) return;
+    const beleg = userReconState.belege.find(b => b.id === belegId);
+    if (!beleg) return;
+    userReconState.results[userReconAssigningIdx].beleg = beleg;
+    userReconState.results[userReconAssigningIdx].status = 'matched';
+    userReconAssigningIdx = null;
+    document.getElementById('userReconBelegeContainer').innerHTML = '';
+    renderUserReconResults();
+  }
+
+  function renderUserAssignBelege() {
+    const container = document.getElementById('userReconBelegeContainer');
+    if (!userReconState || userReconAssigningIdx == null) {
+      container.innerHTML = '';
+      return;
+    }
+    const tx = userReconState.results[userReconAssigningIdx]?.tx;
+    const usedIds = new Set(userReconState.results.filter(r => r.beleg).map(r => r.beleg.id));
+    const { belege, folderMap } = userReconState;
+    const available = belege.filter(b => !usedIds.has(b.id));
+
+    const bannerHtml = `<div class="assign-banner">
+      <span>Quittung zuordnen für: <strong>${esc(tx?.merchant || '—')}</strong> · ${tx?.amount_chf != null ? formatMoney(tx.amount_chf) : '—'} CHF · ${esc(tx?.date || '—')}</span>
+      <button onclick="cancelUserAssigning()" class="btn-logout" style="font-size:10px;padding:3px 10px">Abbrechen</button>
+    </div>`;
+
+    if (!available.length) {
+      container.innerHTML = bannerHtml + '<div class="admin-empty" style="border:1px dashed var(--border);border-radius:4px">Keine verfügbaren Quittungen</div>';
+      return;
+    }
+
+    container.innerHTML = bannerHtml + `<table class="admin-belege-table">
+      <thead><tr><th></th><th>Händler</th><th>Datum</th><th>Betrag</th><th>Einsatz</th><th></th></tr></thead>
+      <tbody>${available.map(b => `<tr>
+        <td><img class="admin-thumb" src="${esc(b.image_url||'')}" onerror="this.style.opacity='0.1'" /></td>
+        <td>${esc(b.merchant||'—')}</td>
+        <td style="color:var(--muted)">${esc(formatDateStr(b.date))}</td>
+        <td style="font-family:var(--serif)">${b.amount!=null?formatMoney(b.amount):'—'} ${esc(b.currency||'')}</td>
+        <td style="color:var(--muted);font-size:11px">${b.folder_id && folderMap[b.folder_id] ? '📁 '+esc(folderMap[b.folder_id]) : '—'}</td>
+        <td><button onclick="confirmUserAssign('${b.id}')" class="btn-assign-beleg">Zuordnen</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
 
   init();
 </script>
