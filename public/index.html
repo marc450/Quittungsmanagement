@@ -2622,23 +2622,52 @@ Rules:
     e.target.value = '';
   });
 
-  async function pdfToImages(file) {
+  // Reconstruct readable, line-broken text from pdf.js text items. Statements
+  // are row/column based, so we group items by vertical position into lines and
+  // order each line left-to-right — otherwise the layout collapses into a blob.
+  function itemsToText(items) {
+    const tol = 3; // px tolerance for treating items as the same line
+    const lines = [];
+    for (const it of items) {
+      if (!it.str) continue;
+      const y = it.transform[5], x = it.transform[4];
+      let line = lines.find(l => Math.abs(l.y - y) <= tol);
+      if (!line) { line = { y, parts: [] }; lines.push(line); }
+      line.parts.push({ x, str: it.str });
+    }
+    lines.sort((a, b) => b.y - a.y); // top to bottom
+    return lines
+      .map(l => l.parts.sort((a, b) => a.x - b.x).map(p => p.str).join(' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  // Digital statements carry a real text layer — extract it directly (instant,
+  // tiny payload, no 60s connection risk). Only rasterize a page to an image
+  // (for Claude vision) when it has too little text to be a real text layer,
+  // i.e. a scanned statement.
+  async function pdfToPages(file) {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const images = [];
+    const pages = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      // JPEG keeps the payload well under the server body limit; PNG of a
-      // full-page scan is ~10x larger and overflows it on multi-page statements.
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      images.push({ base64: dataUrl.split(',')[1], media_type: 'image/jpeg' });
+      const text = itemsToText((await page.getTextContent()).items);
+      if (text.replace(/\s/g, '').length >= 100) {
+        pages.push({ type: 'text', text });
+      } else {
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        // JPEG keeps the payload well under the server body limit; PNG of a
+        // full-page scan is ~10x larger and overflows it on multi-page statements.
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        pages.push({ type: 'image', base64: dataUrl.split(',')[1], media_type: 'image/jpeg' });
+      }
     }
-    return images;
+    return pages;
   }
 
   function normalizeDate(dateStr) {
@@ -2825,15 +2854,16 @@ Rules:
     resultsEl.innerHTML = '';
 
     try {
-      // Step 1: Convert PDF to images
-      statusText.textContent = 'PDF wird konvertiert…';
-      const images = await pdfToImages(file);
+      // Step 1: Read the PDF (text layer where present, image fallback otherwise)
+      statusText.textContent = 'PDF wird gelesen…';
+      const pages = await pdfToPages(file);
 
       // Step 2: Parse with Claude
-      statusText.textContent = `${images.length} Seite(n) werden analysiert…`;
+      const textCount = pages.filter(p => p.type === 'text').length;
+      statusText.textContent = `${pages.length} Seite(n) werden analysiert…`;
       const auth = await getAdminAuthHeader();
-      const body = JSON.stringify({ images });
-      console.log(`[recon] uploading ${images.length} page(s), ${(body.length / 1e6).toFixed(1)}MB payload`);
+      const body = JSON.stringify({ pages });
+      console.log(`[recon] uploading ${pages.length} page(s) (${textCount} text), ${(body.length / 1e6).toFixed(1)}MB payload`);
       const ctrl = new AbortController();
       const timeout = setTimeout(() => ctrl.abort(), 240000); // 4 min
       let parseRes;
@@ -2918,13 +2948,14 @@ Rules:
     resultsEl.innerHTML = '';
 
     try {
-      statusText.textContent = 'PDF wird konvertiert…';
-      const images = await pdfToImages(file);
+      statusText.textContent = 'PDF wird gelesen…';
+      const pages = await pdfToPages(file);
 
-      statusText.textContent = `${images.length} Seite(n) werden analysiert…`;
+      const textCount = pages.filter(p => p.type === 'text').length;
+      statusText.textContent = `${pages.length} Seite(n) werden analysiert…`;
       const auth = await getAdminAuthHeader();
-      const body = JSON.stringify({ images });
-      console.log(`[recon] uploading ${images.length} page(s), ${(body.length / 1e6).toFixed(1)}MB payload`);
+      const body = JSON.stringify({ pages });
+      console.log(`[recon] uploading ${pages.length} page(s) (${textCount} text), ${(body.length / 1e6).toFixed(1)}MB payload`);
       const ctrl = new AbortController();
       const timeout = setTimeout(() => ctrl.abort(), 240000); // 4 min
       let parseRes;

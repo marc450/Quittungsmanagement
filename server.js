@@ -71,23 +71,7 @@ async function verifyAdmin(authHeader) {
   return user.id;
 }
 
-// Parse a credit card statement (array of { base64, media_type }) into transactions.
-// Pages run in parallel (see Promise.all below) so the total time stays near the
-// slowest single page — Railway drops HTTP/2 connections after ~60s, and running
-// pages sequentially blew past that.
-async function parseStatementImages(images, apiKey) {
-  const totalBytes = images.reduce((n, im) => n + (im.base64?.length || 0), 0);
-  console.log(`[parse-statement] start: ${images.length} page(s), ~${(totalBytes / 1.37 / 1e6).toFixed(1)}MB image data`);
-  const t0 = Date.now();
-
-  async function parsePage(img, pi) {
-    const pageStart = Date.now();
-    const payload = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 4000,
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: img.media_type || "image/png", data: img.base64 } },
-        { type: "text", text: `You are a credit card statement parser. Extract ALL transaction lines from this bank statement image.
+const STATEMENT_INSTRUCTIONS = `You are a credit card statement parser. Extract ALL transaction lines from this bank statement page.
 
 Return ONLY a raw JSON array — no markdown, no explanation, no code fences. Start with [ and end with ].
 
@@ -103,9 +87,26 @@ Rules:
 - is_fee: true ONLY for "Bearbeitungsgebühr" fee lines, false for all real transactions
 - Skip header rows, subtotals, and summary lines (like "Übertrag Karte", "Total Karte")
 - Each real purchase/payment is one entry. Do NOT merge multiple transactions.
-- If a transaction has a currency conversion line below it, that's part of the same transaction — do not create a separate entry for the conversion line.` }
-      ]}]
-    };
+- If a transaction has a currency conversion line below it, that's part of the same transaction — do not create a separate entry for the conversion line.`;
+
+// Parse a credit card statement into transactions. Each page is either
+// { type: 'text', text } (extracted from the PDF text layer — fast, tiny
+// payload) or { type: 'image', base64, media_type } (a rasterized page, used
+// only when a page has no usable text layer). Pages run in parallel so the
+// total time stays near the slowest single page.
+async function parseStatementPages(pages, apiKey) {
+  const textPages = pages.filter(p => p.type === 'text').length;
+  const imagePages = pages.length - textPages;
+  console.log(`[parse-statement] start: ${pages.length} page(s) (${textPages} text, ${imagePages} image)`);
+  const t0 = Date.now();
+
+  async function parsePage(page, pi) {
+    const pageStart = Date.now();
+    const content = page.type === 'image'
+      ? [{ type: "image", source: { type: "base64", media_type: page.media_type || "image/png", data: page.base64 } },
+         { type: "text", text: STATEMENT_INSTRUCTIONS }]
+      : [{ type: "text", text: `${STATEMENT_INSTRUCTIONS}\n\nStatement page text:\n\n${page.text}` }];
+    const payload = { model: "claude-sonnet-4-6", max_tokens: 4000, messages: [{ role: "user", content }] };
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -120,13 +121,13 @@ Rules:
     const text = (data.content || []).map(b => b.text || '').join('').trim();
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-    console.log(`[parse-statement] page ${pi + 1}/${images.length} done in ${Date.now() - pageStart}ms (status ${response.status})`);
+    console.log(`[parse-statement] page ${pi + 1}/${pages.length} (${page.type}) done in ${Date.now() - pageStart}ms (status ${response.status})`);
     return parsed;
   }
 
-  const pages = await Promise.all(images.map((img, pi) => parsePage(img, pi)));
+  const results = await Promise.all(pages.map((page, pi) => parsePage(page, pi)));
   // Filter out fee lines
-  const transactions = pages.flat().filter(t => !t.is_fee);
+  const transactions = results.flat().filter(t => !t.is_fee);
   console.log(`[parse-statement] success: ${transactions.length} tx in ${Date.now() - t0}ms`);
   return transactions;
 }
@@ -143,14 +144,17 @@ Rules:
 async function streamParseStatement(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
-  const { images } = req.body; // array of { base64, media_type }
-  if (!images || !images.length) return res.status(400).json({ error: 'No images' });
+  // Pages are { type: 'text', text } or { type: 'image', base64, media_type }.
+  // Older clients sent { images: [...] }; accept that as image-only pages.
+  let { pages } = req.body;
+  if (!pages && Array.isArray(req.body.images)) pages = req.body.images.map(im => ({ type: 'image', ...im }));
+  if (!pages || !pages.length) return res.status(400).json({ error: 'No pages' });
   const t0 = Date.now();
   res.setHeader('Content-Type', 'application/json');
   res.flushHeaders();
   const heartbeat = setInterval(() => { try { res.write(' '); } catch {} }, 15000);
   try {
-    const transactions = await parseStatementImages(images, apiKey);
+    const transactions = await parseStatementPages(pages, apiKey);
     clearInterval(heartbeat);
     res.end(JSON.stringify({ transactions }));
   } catch (err) {
