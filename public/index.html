@@ -985,9 +985,39 @@
   let belege = [], detailBeleg = null;
   let folders = [], currentFolderId = null, draggingBelegId = null;
 
+  // Fetch the runtime config, validating that we actually got JSON.
+  // A transient backend hiccup (e.g. server restart/redeploy) makes the edge
+  // return an HTML error page — never feed that to JSON.parse.
+  async function fetchConfig() {
+    const res = await fetch('/api/config', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) throw new Error('Server nicht erreichbar');
+    return res.json();
+  }
+
+  function showInitError() {
+    document.body.innerHTML = `<div style="padding:40px;font-family:system-ui,sans-serif;color:#c8440a;text-align:center;max-width:420px;margin:60px auto">
+      <p style="font-size:1.1rem;margin-bottom:8px">Verbindung zum Server fehlgeschlagen</p>
+      <p style="color:#7a7a7a;margin-bottom:24px">Bitte versuche es in einem Moment erneut.</p>
+      <button onclick="location.reload()" style="background:#0066ff;color:#fff;border:none;border-radius:10px;padding:12px 24px;font-size:1rem;font-weight:600;cursor:pointer">Neu laden</button>
+    </div>`;
+  }
+
   async function init() {
+    // Retry with backoff so a brief restart doesn't permanently brick the page.
+    let cfg;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        cfg = await fetchConfig();
+        break;
+      } catch (err) {
+        if (attempt === 5) { showInitError(); return; }
+        await new Promise(r => setTimeout(r, attempt * 800));
+      }
+    }
+
     try {
-      const cfg = await fetch('/api/config').then(r => r.json());
       sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
       sb.auth.onAuthStateChange(async (event, session) => {
@@ -1003,7 +1033,7 @@
         }
       });
     } catch (err) {
-      document.body.innerHTML = `<div style="padding:40px;font-family:monospace;color:#c8440a">Init-Fehler: ${err.message}</div>`;
+      showInitError();
     }
   }
 
