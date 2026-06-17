@@ -168,9 +168,14 @@ app.post('/api/admin/parse-statement', async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
   const { images } = req.body; // array of { base64, media_type }
   if (!images || !images.length) return res.status(400).json({ error: 'No images' });
+  const totalBytes = images.reduce((n, im) => n + (im.base64?.length || 0), 0);
+  console.log(`[parse-statement] start: ${images.length} page(s), ~${(totalBytes / 1.37 / 1e6).toFixed(1)}MB image data`);
+  const t0 = Date.now();
   try {
     const allTransactions = [];
-    for (const img of images) {
+    for (let pi = 0; pi < images.length; pi++) {
+      const img = images[pi];
+      const pageStart = Date.now();
       const payload = {
         model: "claude-sonnet-4-6",
         max_tokens: 4000,
@@ -212,11 +217,14 @@ Rules:
         const parsed = JSON.parse(jsonMatch[0]);
         allTransactions.push(...parsed);
       }
+      console.log(`[parse-statement] page ${pi + 1}/${images.length} done in ${Date.now() - pageStart}ms (status ${response.status})`);
     }
     // Filter out fee lines
     const transactions = allTransactions.filter(t => !t.is_fee);
+    console.log(`[parse-statement] success: ${transactions.length} tx in ${Date.now() - t0}ms`);
     res.json({ transactions });
   } catch (err) {
+    console.error(`[parse-statement] error after ${Date.now() - t0}ms:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });

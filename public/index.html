@@ -2785,12 +2785,29 @@ Rules:
       // Step 2: Parse with Claude
       statusText.textContent = `${images.length} Seite(n) werden analysiert…`;
       const auth = await getAdminAuthHeader();
-      const parseRes = await fetch('/api/admin/parse-statement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
-        body: JSON.stringify({ images }),
-      });
-      if (!parseRes.ok) { const d = await parseRes.json(); throw new Error(d.error || 'Parse-Fehler'); }
+      const body = JSON.stringify({ images });
+      console.log(`[recon] uploading ${images.length} page(s), ${(body.length / 1e6).toFixed(1)}MB payload`);
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 240000); // 4 min
+      let parseRes;
+      try {
+        parseRes = await fetch('/api/admin/parse-statement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+          body,
+          signal: ctrl.signal,
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') throw new Error('Zeitüberschreitung – die Analyse hat zu lange gedauert.');
+        throw new Error(`Verbindung zum Server unterbrochen (${e.message})`);
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!parseRes.ok) {
+        let msg = 'Parse-Fehler';
+        try { const d = await parseRes.json(); msg = d.error || msg; } catch { msg = `Server-Fehler ${parseRes.status}`; }
+        throw new Error(msg);
+      }
       const { transactions } = await parseRes.json();
 
       // Step 3: Fetch belege for user
