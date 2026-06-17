@@ -133,15 +133,12 @@ async function parseStatementPages(pages, apiKey) {
 }
 
 // Shared parse-statement response handler (auth is enforced by the caller).
-// Railway drops an idle HTTP connection after ~60s. While Claude parses the
-// pages no bytes flow to the client, so a slow statement was getting cut with
-// "Failed to fetch" even though the server eventually finished. Flush the
-// headers right away and trickle a whitespace byte every 15s to keep the
-// connection alive; the trailing JSON is what the client actually parses
-// (leading whitespace is valid JSON, so the heartbeat bytes are harmless).
-// Because headers are already sent, the status code is locked at 200 — we
-// signal failure with an { error } body instead of a 500.
-async function streamParseStatement(req, res) {
+// One buffered JSON response — no early flushHeaders/heartbeat. Extracting the
+// PDF text layer keeps this well under a minute, so we don't need to fight the
+// ~60s connection limit; and an early flushHeaders() made Railway's HTTP/2 proxy
+// forward the 200 but drop the trailing body chunk, leaving the browser with an
+// empty body it couldn't parse ("Server-Fehler 200").
+async function handleParseStatement(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
   // Pages are { type: 'text', text } or { type: 'image', base64, media_type }.
@@ -150,17 +147,12 @@ async function streamParseStatement(req, res) {
   if (!pages && Array.isArray(req.body.images)) pages = req.body.images.map(im => ({ type: 'image', ...im }));
   if (!pages || !pages.length) return res.status(400).json({ error: 'No pages' });
   const t0 = Date.now();
-  res.setHeader('Content-Type', 'application/json');
-  res.flushHeaders();
-  const heartbeat = setInterval(() => { try { res.write(' '); } catch {} }, 15000);
   try {
     const transactions = await parseStatementPages(pages, apiKey);
-    clearInterval(heartbeat);
-    res.end(JSON.stringify({ transactions }));
+    res.json({ transactions });
   } catch (err) {
-    clearInterval(heartbeat);
     console.error(`[parse-statement] error after ${Date.now() - t0}ms:`, err.message);
-    res.end(JSON.stringify({ error: err.message }));
+    res.status(500).json({ error: err.message });
   }
 }
 
@@ -268,14 +260,14 @@ app.post('/api/admin/create-user', async (req, res) => {
 app.post('/api/parse-statement', async (req, res) => {
   const userId = await verifyUser(req.headers.authorization);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-  return streamParseStatement(req, res);
+  return handleParseStatement(req, res);
 });
 
 // POST /api/admin/parse-statement — admins parse on behalf of another user
 app.post('/api/admin/parse-statement', async (req, res) => {
   const adminId = await verifyAdmin(req.headers.authorization);
   if (!adminId) return res.status(403).json({ error: 'Forbidden' });
-  return streamParseStatement(req, res);
+  return handleParseStatement(req, res);
 });
 
 // DELETE /api/admin/delete-user

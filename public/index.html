@@ -2880,8 +2880,7 @@ Rules:
       } finally {
         clearTimeout(timeout);
       }
-      // The server keeps the connection alive with a heartbeat and always
-      // returns 200, signalling failure via an { error } field in the body.
+      // Success is 200 + { transactions }; failure is a non-200 with { error }.
       const parseData = await parseRes.json().catch(() => null);
       if (!parseRes.ok) throw new Error(parseData?.error || `Server-Fehler ${parseRes.status}`);
       if (!parseData || parseData.error) throw new Error(parseData?.error || 'Parse-Fehler');
@@ -2972,11 +2971,10 @@ Rules:
       } finally {
         clearTimeout(timeout);
       }
-      // The endpoint streams a keepalive heartbeat and locks the status at 200,
-      // signalling failure with an { error } body (see streamParseStatement).
-      let data;
-      try { data = await parseRes.json(); } catch { throw new Error(`Server-Fehler ${parseRes.status}`); }
-      if (data.error) throw new Error(data.error);
+      // Success is 200 + { transactions }; failure is a non-200 with { error }.
+      const data = await parseRes.json().catch(() => null);
+      if (!parseRes.ok) throw new Error(data?.error || `Server-Fehler ${parseRes.status}`);
+      if (!data || data.error) throw new Error(data?.error || 'Parse-Fehler');
       const transactions = data.transactions || [];
 
       statusText.textContent = 'Belege werden geladen…';
