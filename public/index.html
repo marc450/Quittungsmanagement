@@ -3051,8 +3051,15 @@ Rules:
     e.currentTarget.classList.remove('dragging');
   }
 
-  function reconRowDragOver(e) {
-    if (!reconDragBelegId) return;
+  // A row that already has an assigned receipt is not a drop target — the user
+  // must remove the connected Quittung ("Entfernen") before assigning a new one.
+  function reconRowIsMatched(idx, scope) {
+    const ctx = reconCtx(scope);
+    return !!(ctx.state && ctx.state.results[idx] && ctx.state.results[idx].beleg);
+  }
+
+  function reconRowDragOver(e, idx, scope) {
+    if (!reconDragBelegId || reconRowIsMatched(idx, scope)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     e.currentTarget.classList.add('recon-drop-target');
@@ -3066,6 +3073,8 @@ Rules:
     e.preventDefault();
     e.currentTarget.classList.remove('recon-drop-target');
     if (!reconDragBelegId || reconDragScope !== scope) return;
+    // Refuse to overwrite an existing assignment.
+    if (reconRowIsMatched(idx, scope)) { reconDragBelegId = null; reconDragScope = null; return; }
     const ctx = reconCtx(scope);
     if (!ctx.state || !ctx.state.results[idx]) return;
     const beleg = (ctx.belege || []).find(b => b.id === reconDragBelegId);
@@ -3102,7 +3111,7 @@ Rules:
       const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
       const rowClass = (isMatched ? 'matched' : reconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
-      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event)" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'admin')">
+      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event,${idx},'admin')" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'admin')">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
@@ -3515,7 +3524,7 @@ Rules:
       const isPrivate = isMatched && b && b.payment_method === 'Privatauslage';
       const folderName = b && b.folder_id && folderMap[b.folder_id] ? folderMap[b.folder_id] : null;
       const rowClass = (isMatched ? 'matched' : userReconAssigningIdx === idx ? 'assigning' : 'unmatched') + (isPrivate ? ' private' : '');
-      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event)" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'user')">
+      return `<div class="recon-row ${rowClass}" ondragover="reconRowDragOver(event,${idx},'user')" ondragleave="reconRowDragLeave(event)" ondrop="reconRowDrop(event,${idx},'user')">
         <div class="recon-left">
           <div class="recon-merchant">${esc(tx.merchant || '—')}${isPrivate ? ' <span class="pm-badge pm-privatauslage">Privatauslage</span>' : ''}</div>
           <div class="recon-date">${esc(tx.date || '—')}${tx.currency_original && tx.currency_original !== 'CHF' ? ' · '+esc(tx.currency_original)+' '+(tx.amount_original != null ? formatMoney(tx.amount_original) : '') : ''}</div>
