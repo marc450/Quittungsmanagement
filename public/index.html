@@ -659,6 +659,9 @@
             </label>
           </div>
           <p style="font-size:12px;color:var(--muted);margin:0 0 20px;line-height:1.5">Lade Deine Kreditkartenabrechnung als PDF hoch. Sie wird gespeichert und automatisch mit Deinen erfassten Belegen abgeglichen. Klicke eine Abrechnung an, um Belege zuzuordnen.</p>
+          <div class="drop-zone recon-dropzone" id="userReconDrop" onclick="document.getElementById('userStatementFileInput').click()" style="padding:24px;margin-bottom:20px">
+            <span class="drop-text">PDF-Abrechnung hierher ziehen oder <strong>auswählen</strong></span>
+          </div>
           <div id="userReconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
             <div style="display:flex;align-items:center;gap:10px">
               <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
@@ -791,6 +794,9 @@
 
         <!-- Overview: saved statements for the selected user -->
         <div id="adminReconOverview">
+          <div class="drop-zone recon-dropzone" id="adminReconDrop" onclick="document.getElementById('reconUserSelect').value ? document.getElementById('statementFileInput').click() : showAdminReconError('Bitte zuerst Benutzer:in wählen.')" style="padding:24px;margin-bottom:20px">
+            <span class="drop-text">PDF-Abrechnung hierher ziehen oder <strong>auswählen</strong></span>
+          </div>
           <div id="reconStatus" style="display:none;padding:16px;background:var(--cream);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
             <div style="display:flex;align-items:center;gap:10px">
               <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin 0.6s linear infinite"></div>
@@ -2667,6 +2673,21 @@ Rules:
     e.target.value = '';
   });
 
+  (function () {
+    const dz = document.getElementById('adminReconDrop');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', async e => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      const userId = document.getElementById('reconUserSelect').value;
+      if (!userId) { showAdminReconError('Bitte zuerst Benutzer:in wählen.'); return; }
+      const file = firstPdf(e.dataTransfer.files);
+      if (!file) { showAdminReconError('Bitte eine PDF-Datei ablegen.'); return; }
+      await runReconciliation(file, userId);
+    });
+  })();
+
   function showAdminReconError(msg) {
     const el = document.getElementById('adminReconError');
     el.textContent = msg || '';
@@ -3140,6 +3161,24 @@ Rules:
     await runUserReconciliation(file);
     e.target.value = '';
   });
+
+  // Pick the first PDF out of a drop, ignoring other file types.
+  function firstPdf(fileList) {
+    return [...(fileList || [])].find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) || null;
+  }
+
+  (function () {
+    const dz = document.getElementById('userReconDrop');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', async e => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      const file = firstPdf(e.dataTransfer.files);
+      if (!file) { showUserReconError('Bitte eine PDF-Datei ablegen.'); return; }
+      await runUserReconciliation(file);
+    });
+  })();
 
   function showUserReconError(msg) {
     const el = document.getElementById('userReconError');
